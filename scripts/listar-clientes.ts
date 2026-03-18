@@ -17,7 +17,7 @@ async function main() {
   console.log("Leyendo de Google Sheets...\n");
 
   const rows = await fetchSheetData(sheetId, tabName);
-  const clientes = [...new Set(rows.map((r) => r.cliente).filter(Boolean))].sort();
+  const clientes = Array.from(new Set(rows.map((r) => r.cliente).filter(Boolean))).sort();
 
   console.log("=== CLIENTES EN LA COLUMNA CLIENTE ===\n");
   if (clientes.length === 0) {
