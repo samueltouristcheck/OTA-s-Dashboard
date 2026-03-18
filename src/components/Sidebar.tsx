@@ -17,7 +17,7 @@ const nav = [
 
 export function Sidebar() {
   const path = usePathname();
-  const [user, setUser] = useState<{ role?: string; clienteNombre?: string; clienteLogoUrl?: string } | null>(null);
+  const [user, setUser] = useState<{ role?: string; username?: string; clienteNombre?: string; clienteLogoUrl?: string } | null>(null);
 
   function loadUser() {
     try {
