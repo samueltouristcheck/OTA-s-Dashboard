@@ -37,9 +37,10 @@ export async function POST(req: NextRequest) {
           if (error) throw error;
           clienteId = created!.id;
         }
-        clientesMap.set(row.cliente, clienteId);
+        if (clienteId) clientesMap.set(row.cliente, clienteId);
       }
 
+      if (!clienteId) continue;
       const { error } = await supabase.from("Venta").insert({
         clienteId,
         ota: row.ota,
