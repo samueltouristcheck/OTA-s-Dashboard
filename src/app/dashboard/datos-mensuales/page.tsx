@@ -70,10 +70,11 @@ export default function DatosMensualesPage() {
         clienteId: v.clienteId || v.cliente?.nombre || "",
       })) : [];
       const fromSupabase = Array.isArray(ventasData) ? ventasData : [];
-      const sheetKeys = new Set(fromSheets.map((v: { cliente?: { nombre: string }; ota: string; mes: string; anio?: number; ano?: number; tipoEntrada: string; producto: string; numeroEntradas: number }) => {
+      type VentaItem = { cliente?: { nombre: string }; clienteId?: string; ota?: string; mes?: string; anio?: number; ano?: number; tipoEntrada?: string; producto?: string; numeroEntradas?: number };
+      const sheetKeys = new Set(fromSheets.map((v: VentaItem) => {
         const c = v.cliente?.nombre || "";
-        const a = v.anio ?? (v as { ano?: number }).ano ?? 0;
-        return `${c}|${v.ota}|${v.mes}|${a}|${v.tipoEntrada}|${v.producto}|${v.numeroEntradas}`;
+        const a = v.anio ?? v.ano ?? 0;
+        return `${c}|${v.ota ?? ""}|${v.mes ?? ""}|${a}|${v.tipoEntrada ?? ""}|${v.producto ?? ""}|${v.numeroEntradas ?? 0}`;
       }));
       const merged = [...fromSheets];
       for (const v of fromSupabase) {
@@ -83,12 +84,14 @@ export default function DatosMensualesPage() {
         if (!sheetKeys.has(key)) merged.push(v);
       }
       merged.sort((a, b) => {
-        const aAno = a.anio ?? (a as { ano?: number }).ano ?? 0;
-        const bAno = b.anio ?? (b as { ano?: number }).ano ?? 0;
+        const aItem = a as VentaItem;
+        const bItem = b as VentaItem;
+        const aAno = aItem.anio ?? aItem.ano ?? 0;
+        const bAno = bItem.anio ?? bItem.ano ?? 0;
         if (aAno !== bAno) return bAno - aAno;
-        return (MESES.indexOf(a.mes) - MESES.indexOf(b.mes)) || 0;
+        return (MESES.indexOf(aItem.mes ?? "") - MESES.indexOf(bItem.mes ?? "")) || 0;
       });
-      setVentas(merged);
+      setVentas(merged as Venta[]);
     });
   }
 
@@ -184,7 +187,12 @@ export default function DatosMensualesPage() {
     if (editingCell?.id !== id || editingCell?.field !== field) return;
     const v = ventas.find((x) => x.id === id);
     if (!v) return;
-    const current = field === "cliente" ? clienteMap.get(v.clienteId) || "" : field === "numeroEntradas" || field === "ano" ? String(v[field === "ano" ? "anio" : "numeroEntradas"] ?? (v as { ano?: number }).ano ?? 0) : v[field === "tipo" ? "tipoEntrada" : field];
+    let current: string;
+    if (field === "cliente") current = clienteMap.get(v.clienteId) || "";
+    else if (field === "numeroEntradas") current = String(v.numeroEntradas ?? 0);
+    else if (field === "ano") current = String(v.anio ?? (v as { ano?: number }).ano ?? 0);
+    else if (field === "tipo") current = v.tipoEntrada;
+    else current = String((v as Record<string, unknown>)[field] ?? "");
     if (String(editValue) !== String(current)) {
       const apiVal = field === "numeroEntradas" || field === "ano" ? parseInt(editValue, 10) : editValue;
       saveEdit(id, field, field === "numeroEntradas" || field === "ano" ? apiVal : editValue);
@@ -417,7 +425,7 @@ export default function DatosMensualesPage() {
                               onClick={() => canEdit && startEdit(v, col.key)}
                               className={`min-h-[24px] py-0.5 text-slate-700 rounded px-1 -mx-1 ${canEdit ? "cursor-pointer hover:bg-slate-100" : "cursor-default"}`}
                             >
-                              {val ?? "—"}
+                              {val == null ? "—" : typeof val === "object" && val !== null && "nombre" in val ? (val as { nombre: string }).nombre : String(val)}
                             </div>
                           )}
                         </td>

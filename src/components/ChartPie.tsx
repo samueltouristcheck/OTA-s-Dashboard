@@ -35,13 +35,13 @@ export function ChartPie({ data }: { data: DataPoint[] }) {
             ))}
           </Pie>
           <Tooltip
-            formatter={(v: number, name: string, props: { payload: { porcentaje: string } }) => [
-              `${v.toLocaleString()} (${props.payload.porcentaje}%)`,
+            formatter={(v: number, _name: string, props: { payload?: { porcentaje?: string } }) => [
+              `${v.toLocaleString()} (${props.payload?.porcentaje ?? ""}%)`,
               "Entradas",
             ]}
             cursor={false}
           />
-          <Legend formatter={(value, entry: { payload?: { porcentaje: string } }) => `${value} (${entry.payload?.porcentaje ?? "0"}%)`} />
+          <Legend formatter={(value, entry) => `${value} (${(entry?.payload as { porcentaje?: string })?.porcentaje ?? "0"}%)`} />
         </PieChart>
       </ResponsiveContainer>
     </div>

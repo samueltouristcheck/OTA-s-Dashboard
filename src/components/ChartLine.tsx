@@ -29,7 +29,7 @@ export function ChartLine({ data }: { data: DataPoint[] }) {
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={displayData} margin={{ bottom: 60, right: 50 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-          <XAxis dataKey="mesLabel" tick={{ fontSize: 11, angle: -45, textAnchor: "end" }} interval={0} />
+          <XAxis dataKey="mesLabel" angle={-45} tick={{ fontSize: 11, textAnchor: "end" }} interval={0} />
           <YAxis tick={{ fontSize: 11 }} />
           <Tooltip cursor={false} />
           <Line type="monotone" dataKey="entradas" stroke="#3b82f6" strokeWidth={2} dot={{ fill: "#3b82f6" }} name="Entradas" />

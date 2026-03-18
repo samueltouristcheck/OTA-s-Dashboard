@@ -38,7 +38,7 @@ export function ChartBarComparativaMeses({ porMes, años }: { porMes: Record<str
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ left: 20, bottom: 60, right: 50 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-          <XAxis dataKey="name" tick={{ fontSize: 11, angle: -45, textAnchor: "end" }} interval={0} />
+          <XAxis dataKey="name" angle={-45} tick={{ fontSize: 11, textAnchor: "end" }} interval={0} />
           <YAxis tick={{ fontSize: 11 }} />
           <Tooltip cursor={false} />
           <Legend />

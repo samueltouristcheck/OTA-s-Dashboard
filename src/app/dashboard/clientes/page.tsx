@@ -30,6 +30,7 @@ export default function ClientesPage() {
           ...c,
           username: c.nombre,
           password: "cliente123",
+          hasUser: false,
         })));
       })
       .catch(console.error)

@@ -25,7 +25,7 @@ export default function ConfigPage() {
     })
       .then((r) => r.json())
       .then(setStatus)
-      .catch(() => setStatus({ configured: false, sheetId: null }));
+      .catch(() => setStatus({ configured: false, sheetId: null, tabName: null }));
   }, [token, isAdmin]);
 
   useEffect(() => {

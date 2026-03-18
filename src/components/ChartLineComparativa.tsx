@@ -38,7 +38,7 @@ export function ChartLineComparativa({ series }: { series: Series[] }) {
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ bottom: 60, right: 50 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-          <XAxis dataKey="mes" tick={{ fontSize: 11, angle: -45, textAnchor: "end" }} interval={0} />
+          <XAxis dataKey="mes" angle={-45} tick={{ fontSize: 11, textAnchor: "end" }} interval={0} />
           <YAxis tick={{ fontSize: 11 }} />
           <Tooltip cursor={false} />
           <Legend />
