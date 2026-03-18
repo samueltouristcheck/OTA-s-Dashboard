@@ -57,7 +57,7 @@ export async function POST() {
     let created = 0;
     let updated = 0;
 
-    for (const nombre of nombresSet) {
+    for (const nombre of Array.from(nombresSet)) {
       // Obtener o crear Cliente
       let clienteId: string | null = null;
       const { data: clMatch } = await supabase
