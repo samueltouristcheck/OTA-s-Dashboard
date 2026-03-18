@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
       clienteLogoUrl = c?.logoUrl ?? null;
     }
 
-    const loginId = user.username || user.email;
+    const loginId = user.username || user.email || user.id;
     const token = signToken({
       userId: user.id,
       email: loginId,
