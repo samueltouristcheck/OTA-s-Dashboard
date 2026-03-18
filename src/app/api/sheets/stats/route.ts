@@ -31,16 +31,16 @@ export async function GET(req: NextRequest) {
     const otaList = otaParam ? otaParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
     const tipoList = tipoParam ? tipoParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
 
-    function mesMatches(rowMes: string, filterMes: string) {
+    const mesMatches = (rowMes: string, filterMes: string) => {
       if (!filterMes) return true;
       const rowNorm = String(rowMes || "").trim();
       const filterNorm = String(filterMes || "").trim();
       if (rowNorm === filterNorm) return true;
       const filterName = filterNorm.replace(/^\d+\.\s*/, "").trim();
       return rowNorm === filterName || rowNorm.endsWith(filterName);
-    }
+    };
 
-    function applyFilters(data: typeof rows, exclude?: { mes?: boolean; ota?: boolean; tipo?: boolean }) {
+    const applyFilters = (data: typeof rows, exclude?: { mes?: boolean; ota?: boolean; tipo?: boolean }) => {
       let f = [...data];
       if (payload.role === "client" && payload.clienteNombre) {
         f = f.filter((r) => r.cliente === payload.clienteNombre);
@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
       if (otaList.length && !exclude?.ota) f = f.filter((r) => otaList.includes(String(r.ota || "").trim()));
       if (tipoList.length && !exclude?.tipo) f = f.filter((r) => tipoList.includes(String(r.tipoEntrada || "").trim()));
       return f;
-    }
+    };
 
     const filtered = applyFilters(rows);
     const filteredSinMes = applyFilters(rows, { mes: true });

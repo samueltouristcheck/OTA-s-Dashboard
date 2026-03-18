@@ -34,14 +34,14 @@ export async function GET(req: NextRequest) {
     const otaList = otaParam ? otaParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
     const tipoList = tipoParam ? tipoParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
 
-    function mesMatches(rowMes: string, filterMes: string) {
+    const mesMatches = (rowMes: string, filterMes: string) => {
       if (!filterMes) return true;
       const rowNorm = String(rowMes || "").trim();
       const filterNorm = String(filterMes || "").trim();
       if (rowNorm === filterNorm) return true;
       const filterName = filterNorm.replace(/^\d+\.\s*/, "").trim();
       return rowNorm === filterName || rowNorm.endsWith(filterName);
-    }
+    };
 
     let filtered = rows;
     if (payload.role === "client" && payload.clienteNombre) {
