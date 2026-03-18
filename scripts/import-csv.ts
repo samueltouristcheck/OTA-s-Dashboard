@@ -61,7 +61,7 @@ async function main() {
         ota,
         tipoEntrada: tipoEntrada || "General",
         mes: mes || "01. Enero",
-        año,
+        anio: año,
         numeroEntradas,
         producto: producto || "General",
       },
