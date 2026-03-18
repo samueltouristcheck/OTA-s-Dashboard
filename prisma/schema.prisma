@@ -1,0 +1,37 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Cliente {
+  id     String   @id @default(cuid())
+  nombre String   @unique
+  ventas Venta[]
+  users  User[]
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  role      String   // admin | client
+  clienteId String?
+  cliente   Cliente? @relation(fields: [clienteId], references: [id])
+}
+
+model Venta {
+  id             String   @id @default(cuid())
+  clienteId      String
+  cliente        Cliente  @relation(fields: [clienteId], references: [id])
+  ota            String   // Tiqets, GetYourGuide, etc.
+  tipoEntrada    String   // General, Niño, Reducido
+  mes            String   // "01. Enero"
+  anio           Int
+  numeroEntradas Int
+  producto       String   // 40 Minutos, 60 Minutos
+  createdAt      DateTime @default(now())
+}

@@ -1,0 +1,9 @@
+ID,Marca temporal,Cliente,OTA,Tipo de Entrada,Mes respuesta,Número de entradas,Producto,Año
+1,2024-01-15,Golondrinas,Tiqets,General,01. Enero,150,40 Minutos,2024
+2,2024-01-15,Golondrinas,Tiqets,Niño,01. Enero,45,40 Minutos,2024
+3,2024-01-15,Golondrinas,GetYourGuide,General,01. Enero,220,60 Minutos,2024
+4,2024-02-10,MAPFRE,Viator,Reducido,02. Febrero,80,90 Minutos,2024
+5,2024-02-10,MAPFRE,Tiqets,General,02. Febrero,190,40 Minutos,2024
+6,2024-03-05,Golondrinas,Musement,Niño,03. Marzo,65,60 Minutos,2024
+7,2024-03-05,Golondrinas,GetYourGuide,General,03. Marzo,310,40 Minutos,2024
+8,2024-03-20,MAPFRE,Viator,General,03. Marzo,120,90 Minutos,2024

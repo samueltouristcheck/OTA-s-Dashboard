@@ -1,0 +1,28 @@
+========================================
+COMANDOS PARA SUBIR A GITHUB
+========================================
+
+Abre CMD o PowerShell en esta carpeta (clic derecho -> Abrir en terminal)
+y pega estos comandos UNO POR UNO:
+
+git init
+
+git remote remove origin
+
+git remote add origin https://github.com/samueltouristcheck/OTA-s-Dashboard.git
+
+git add .
+
+git commit -m "Initial commit - OTA Dashboard"
+
+git branch -M main
+
+git push -u origin main
+
+========================================
+Si "remote remove origin" da error, ignóralo.
+Si "git push" pide usuario/contraseña:
+- Usuario: tu usuario de GitHub
+- Contraseña: usa un Personal Access Token (no la contraseña normal)
+  Crear en: GitHub -> Settings -> Developer settings -> Personal access tokens
+========================================
