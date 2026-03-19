@@ -89,7 +89,18 @@ export async function fetchSheetData(
 
   let auth;
   if (credentialsJson) {
-    const creds = JSON.parse(credentialsJson);
+    let creds: Record<string, unknown>;
+    try {
+      const trimmed = credentialsJson.trim();
+      // Si Vercel/env añadió comillas extra alrededor del JSON, quitarlas
+      const toParse = trimmed.startsWith('"') && trimmed.endsWith('"') ? trimmed.slice(1, -1).replace(/\\"/g, '"') : trimmed;
+      creds = JSON.parse(toParse) as Record<string, unknown>;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(
+        `GOOGLE_SERVICE_ACCOUNT_JSON inválido (${msg}). Pega el JSON completo sin comillas extra. Debe empezar con {"type":"service_account"...}`
+      );
+    }
     auth = new google.auth.GoogleAuth({
       credentials: creds,
       scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
