@@ -134,10 +134,14 @@ export async function POST(req: NextRequest) {
           clienteNombre = c.nombre;
           clienteLogoUrl = c.logoUrl ?? null;
           resolvedClienteId = c.id;
-          // Actualizar el User para futuros logins
           await supabase.from("User").update({ clienteId: c.id }).eq("id", user.id);
         }
       }
+    }
+
+    // Último fallback: cliente sin Cliente en BD — usar username para redirigir al dashboard del cliente
+    if (user.role === "client" && !clienteNombre) {
+      clienteNombre = (user.username || user.email || loginInput || "").trim() || null;
     }
 
     const loginId = user.username || user.email || user.id;

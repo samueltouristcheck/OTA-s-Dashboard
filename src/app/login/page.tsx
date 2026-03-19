@@ -25,9 +25,11 @@ export default function LoginPage() {
       }
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
-      const dest = data.user?.clienteNombre
-        ? `/dashboard/cliente/${encodeURIComponent(data.user.clienteNombre)}`
-        : "/dashboard";
+      // Clientes SIEMPRE van a su dashboard, nunca al superadmin
+      const dest =
+        data.user?.role === "client"
+          ? `/dashboard/cliente/${encodeURIComponent(data.user.clienteNombre || data.user.username || "cliente")}`
+          : "/dashboard";
       router.push(dest);
       router.refresh();
     } catch {
