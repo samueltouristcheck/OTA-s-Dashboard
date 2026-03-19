@@ -87,7 +87,7 @@ export function Sidebar() {
     <aside className="fixed left-0 top-0 h-screen w-56 border-r border-slate-200 bg-white p-4 flex flex-col z-30">
       <div className="flex-1">
         {displayLogo ? (
-          <Link href="/dashboard" className="block mb-4 -mx-4 px-4">
+          <Link href={miPerfilHref || "/dashboard"} className="block mb-4 -mx-4 px-4">
             <img
               src={logoUrl!}
               alt="Logo cliente"
@@ -128,7 +128,7 @@ export function Sidebar() {
       </nav>
       </div>
       <div className="pt-4 mt-auto border-t border-slate-200">
-        <Link href="/dashboard" className="block -mx-4 px-4">
+        <Link href={miPerfilHref || "/dashboard"} className="block -mx-4 px-4">
           <img src="/tourischeck.jpg" alt="OTA Sales" className="w-full h-auto object-contain" />
         </Link>
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ChartLine } from "@/components/ChartLine";
 import { ChartBar } from "@/components/ChartBar";
 import { ChartPie } from "@/components/ChartPie";
@@ -32,6 +33,7 @@ type Venta = {
 };
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [stats, setStats] = useState<Stats | null>(null);
   const [ventas, setVentas] = useState<Venta[]>([]);
   const [comparativaData, setComparativaData] = useState<{
@@ -56,6 +58,13 @@ export default function DashboardPage() {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "{}") : null;
   const isAdmin = user?.role === "admin";
+
+  // Clientes deben ir a su página, no al panel de super admin
+  useEffect(() => {
+    if (!isAdmin && user?.clienteNombre) {
+      router.replace(`/dashboard/cliente/${encodeURIComponent(user.clienteNombre)}`);
+    }
+  }, [isAdmin, user?.clienteNombre, router]);
 
   useEffect(() => {
     if (!token) return;

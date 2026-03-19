@@ -117,15 +117,55 @@ export default function ConfigPage() {
     }
   }
 
+  async function compressImageIfNeeded(dataUrl: string): Promise<string> {
+    if (!dataUrl.startsWith("data:image/")) return dataUrl;
+    const maxSize = 200 * 1024;
+    if (dataUrl.length < maxSize) return dataUrl;
+    return new Promise((resolve) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const maxW = 400;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxW) {
+          h = (h * maxW) / w;
+          w = maxW;
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(dataUrl);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, w, h);
+        let quality = 0.8;
+        let result = canvas.toDataURL("image/jpeg", quality);
+        while (result.length > maxSize && quality > 0.3) {
+          quality -= 0.1;
+          result = canvas.toDataURL("image/jpeg", quality);
+        }
+        resolve(result);
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+  }
+
   async function saveLogo() {
     if (!token) return;
     setSavingLogo(true);
     setMessage(null);
     try {
+      let urlToSave = logoUrl.trim() || null;
+      if (urlToSave?.startsWith("data:image/")) {
+        urlToSave = await compressImageIfNeeded(urlToSave);
+      }
       const res = await fetch("/api/config/logo", {
         method: "PUT",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ logoUrl: logoUrl.trim() || null }),
+        body: JSON.stringify({ logoUrl: urlToSave }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error");
@@ -157,7 +197,7 @@ export default function ConfigPage() {
             Logo de tu empresa
           </h2>
           <p className="text-sm text-slate-600">
-            Pega una imagen (Ctrl+V) o pega la URL del logo. La imagen se mostrará en el panel.
+            Pega una imagen (Ctrl+V) o pega la URL del logo. Las imágenes grandes se comprimen automáticamente.
           </p>
           <div className="flex flex-col gap-3">
             <div className="flex gap-3 items-end">
