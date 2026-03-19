@@ -11,13 +11,18 @@ export async function GET(req: Request) {
     if (!payload?.clienteId) {
       return NextResponse.json({ logoUrl: null });
     }
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("Cliente")
       .select("logoUrl")
       .eq("id", payload.clienteId)
-      .single();
+      .maybeSingle();
+    if (error) {
+      console.warn("[logo GET] Supabase error:", error.message);
+      return NextResponse.json({ logoUrl: null });
+    }
     return NextResponse.json({ logoUrl: data?.logoUrl ?? null });
-  } catch {
+  } catch (e) {
+    console.warn("[logo GET] Error:", e);
     return NextResponse.json({ logoUrl: null });
   }
 }
@@ -37,10 +42,19 @@ export async function PUT(req: NextRequest) {
       .from("Cliente")
       .update({ logoUrl: url })
       .eq("id", payload.clienteId);
-    if (error) throw error;
+    if (error) {
+      console.error("[logo PUT] Supabase error:", error);
+      if (error.message?.includes("logoUrl") || error.code === "42703") {
+        return NextResponse.json(
+          { error: "Falta la columna logoUrl en Supabase. Ejecuta: ALTER TABLE \"Cliente\" ADD COLUMN IF NOT EXISTS \"logoUrl\" TEXT;" },
+          { status: 500 }
+        );
+      }
+      return NextResponse.json({ error: "Error al guardar" }, { status: 500 });
+    }
     return NextResponse.json({ ok: true, logoUrl: url });
   } catch (e) {
-    console.error(e);
+    console.error("[logo PUT] Error:", e);
     return NextResponse.json({ error: "Error al guardar" }, { status: 500 });
   }
 }

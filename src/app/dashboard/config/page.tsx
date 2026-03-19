@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { RefreshCw, FileSpreadsheet, Upload, Users, Image } from "lucide-react";
+import { RefreshCw, FileSpreadsheet, Upload, Users, Image, KeyRound } from "lucide-react";
 
 export default function ConfigPage() {
   const [status, setStatus] = useState<{ configured: boolean; sheetId: string | null; tabName: string | null } | null>(null);
@@ -12,6 +12,11 @@ export default function ConfigPage() {
   const [message, setMessage] = useState<{ type: "ok" | "error"; text: string } | null>(null);
   const [logoUrl, setLogoUrl] = useState("");
   const [savingLogo, setSavingLogo] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordLoading, setPasswordLoading] = useState(false);
 
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "{}") : null;
@@ -153,6 +158,42 @@ export default function ConfigPage() {
     });
   }
 
+  async function handleChangePassword(e: React.FormEvent) {
+    e.preventDefault();
+    setMessage(null);
+    if (newPassword !== confirmPassword) {
+      setMessage({ type: "error", text: "Las contraseñas no coinciden" });
+      return;
+    }
+    if (newPassword.length < 6) {
+      setMessage({ type: "error", text: "La contraseña debe tener al menos 6 caracteres" });
+      return;
+    }
+    if (!token) return;
+    setPasswordLoading(true);
+    try {
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage({ type: "error", text: data.error || "Error al cambiar contraseña" });
+        return;
+      }
+      setMessage({ type: "ok", text: "Contraseña actualizada correctamente." });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setShowChangePassword(false);
+    } catch {
+      setMessage({ type: "error", text: "Error de conexión" });
+    } finally {
+      setPasswordLoading(false);
+    }
+  }
+
   async function saveLogo() {
     if (!token) return;
     setSavingLogo(true);
@@ -288,6 +329,80 @@ export default function ConfigPage() {
               <p className="text-xs text-slate-500 mb-1">Vista previa:</p>
               <img src={logoUrl} alt="Logo" className="h-16 object-contain max-w-[200px] bg-slate-50 rounded p-2" onError={() => {}} />
             </div>
+          )}
+        </div>
+
+        <div className="p-6 bg-white rounded-xl border border-slate-200 space-y-4">
+          <h2 className="font-medium text-slate-800 flex items-center gap-2">
+            <KeyRound className="w-5 h-5" />
+            Cambiar contraseña
+          </h2>
+          {!showChangePassword ? (
+            <button
+              onClick={() => setShowChangePassword(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+            >
+              Cambiar contraseña
+            </button>
+          ) : (
+            <form onSubmit={handleChangePassword} className="space-y-4 max-w-md">
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">Contraseña actual</label>
+                <input
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">Nueva contraseña</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                  placeholder="••••••••"
+                  required
+                  minLength={6}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">Confirmar nueva contraseña</label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={passwordLoading}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {passwordLoading ? "Guardando..." : "Guardar"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowChangePassword(false);
+                    setCurrentPassword("");
+                    setNewPassword("");
+                    setConfirmPassword("");
+                    setMessage(null);
+                  }}
+                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
           )}
         </div>
         {message && (
