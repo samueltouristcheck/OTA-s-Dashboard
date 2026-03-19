@@ -140,7 +140,7 @@ export function DashboardContent({
     }
     return { mes, entradas };
   });
-  const barData = Object.entries(stats.porOta).map(([name, entradas]) => ({ name, entradas }));
+  const barData = Object.entries(stats.porOta || {}).map(([name, entradas]) => ({ name, entradas }));
   const pieData = Object.entries(stats.porTipo).map(([name, value]) => ({ name, value }));
 
   const años = añosOpt.length ? añosOpt : Object.keys(stats.porAño).map(Number).sort((a, b) => b - a);

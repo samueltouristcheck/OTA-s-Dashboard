@@ -41,12 +41,19 @@ export async function GET(req: NextRequest) {
       return rowNorm === filterName || rowNorm.endsWith(filterName);
     };
 
+    const clienteMatch = (rowCliente: string, filterCliente: string) =>
+      String(rowCliente || "").trim().toLowerCase() === String(filterCliente || "").trim().toLowerCase();
+
     let filtered = rows;
 
-    if (payload.role === "client" && payload.clienteNombre) {
-      filtered = filtered.filter((r) => r.cliente === payload.clienteNombre);
+    if (payload.role === "client") {
+      if (payload.clienteNombre) {
+        filtered = filtered.filter((r) => clienteMatch(r.cliente, payload.clienteNombre!));
+      } else {
+        filtered = []; // Cliente sin clienteNombre: no mostrar datos de otros
+      }
     } else if (clienteNombre) {
-      filtered = filtered.filter((r) => r.cliente === clienteNombre);
+      filtered = filtered.filter((r) => clienteMatch(r.cliente, clienteNombre));
     }
     if (añoList.length) filtered = filtered.filter((r) => añoList.includes(r.año));
     if (mesList.length) filtered = filtered.filter((r) => mesList.some((m) => mesMatches(r.mes, m)));

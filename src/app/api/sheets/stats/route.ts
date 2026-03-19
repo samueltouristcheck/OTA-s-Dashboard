@@ -40,12 +40,19 @@ export async function GET(req: NextRequest) {
       return rowNorm === filterName || rowNorm.endsWith(filterName);
     };
 
+    const clienteMatch = (rowCliente: string, filterCliente: string) =>
+      String(rowCliente || "").trim().toLowerCase() === String(filterCliente || "").trim().toLowerCase();
+
     const applyFilters = (data: typeof rows, exclude?: { mes?: boolean; ota?: boolean; tipo?: boolean }) => {
       let f = [...data];
-      if (payload.role === "client" && payload.clienteNombre) {
-        f = f.filter((r) => r.cliente === payload.clienteNombre);
+      if (payload.role === "client") {
+        if (payload.clienteNombre) {
+          f = f.filter((r) => clienteMatch(r.cliente, payload.clienteNombre!));
+        } else {
+          f = []; // Cliente sin clienteNombre: no mostrar datos de otros
+        }
       } else if (clienteNombre) {
-        f = f.filter((r) => r.cliente === clienteNombre);
+        f = f.filter((r) => clienteMatch(r.cliente, clienteNombre));
       }
       if (añoList.length) f = f.filter((r) => añoList.includes(r.año));
       if (mesList.length && !exclude?.mes) f = f.filter((r) => mesList.some((m) => mesMatches(r.mes, m)));

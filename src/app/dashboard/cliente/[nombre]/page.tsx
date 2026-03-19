@@ -31,7 +31,7 @@ export default function ClientePerfilPage() {
     );
   }
 
-  const canView = isAdmin || clienteNombre === nombre;
+  const canView = isAdmin || (clienteNombre && nombre && clienteNombre.trim().toLowerCase() === nombre.trim().toLowerCase());
   if (!canView) {
     return (
       <div className="p-6 bg-amber-50 border border-amber-200 rounded-xl text-amber-800">
@@ -40,7 +40,7 @@ export default function ClientePerfilPage() {
     );
   }
 
-  const isOwnProfile = clienteNombre === nombre;
+  const isOwnProfile = clienteNombre && nombre && clienteNombre.trim().toLowerCase() === nombre.trim().toLowerCase();
 
   async function handleChangePassword(e: React.FormEvent) {
     e.preventDefault();

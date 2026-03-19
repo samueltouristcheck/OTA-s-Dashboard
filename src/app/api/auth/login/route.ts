@@ -112,10 +112,32 @@ export async function POST(req: NextRequest) {
 
     let clienteNombre: string | null = null;
     let clienteLogoUrl: string | null = null;
+    let resolvedClienteId: string | undefined = user.clienteId ?? undefined;
+
     if (user.clienteId) {
       const { data: c } = await supabase.from("Cliente").select("nombre, logoUrl").eq("id", user.clienteId).single();
       clienteNombre = c?.nombre ?? null;
       clienteLogoUrl = c?.logoUrl ?? null;
+    }
+
+    // Fallback: usuario cliente sin clienteId — buscar Cliente por nombre (username/email)
+    if (user.role === "client" && !clienteNombre) {
+      const searchName = (user.username || user.email || loginInput || "").trim();
+      if (searchName) {
+        const { data: c } = await supabase
+          .from("Cliente")
+          .select("id, nombre, logoUrl")
+          .ilike("nombre", searchName)
+          .limit(1)
+          .maybeSingle();
+        if (c) {
+          clienteNombre = c.nombre;
+          clienteLogoUrl = c.logoUrl ?? null;
+          resolvedClienteId = c.id;
+          // Actualizar el User para futuros logins
+          await supabase.from("User").update({ clienteId: c.id }).eq("id", user.id);
+        }
+      }
     }
 
     const loginId = user.username || user.email || user.id;
@@ -123,7 +145,7 @@ export async function POST(req: NextRequest) {
       userId: user.id,
       email: loginId,
       role: user.role as "admin" | "client",
-      clienteId: user.clienteId ?? undefined,
+      clienteId: resolvedClienteId,
       clienteNombre: clienteNombre ?? undefined,
     });
 
@@ -134,7 +156,7 @@ export async function POST(req: NextRequest) {
         username: loginId,
         email: user.email,
         role: user.role,
-        clienteId: user.clienteId,
+        clienteId: resolvedClienteId,
         clienteNombre,
         clienteLogoUrl,
       },

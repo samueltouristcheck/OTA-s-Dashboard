@@ -167,11 +167,12 @@ export default function DashboardPage() {
     }
     return { mes, entradas };
   });
-  const barData = Object.entries(stats.porOta).map(([name, entradas]) => ({ name, entradas }));
+  const barData = Object.entries(stats.porOta || {}).map(([name, entradas]) => ({ name, entradas }));
   const pieData = Object.entries(stats.porTipo).map(([name, value]) => ({ name, value }));
 
   const años = añosOpt.length ? añosOpt : Object.keys(stats.porAño).map(Number).sort((a, b) => b - a);
   const tiposList = [...new Set(tipos.length ? tipos : Object.keys(stats.porTipo || {}))].sort();
+  const otasList = [...new Set(otas.length ? otas : Object.keys(stats.porOta || {}))].sort();
   const MESES_LIST = ["01. Enero", "02. Febrero", "03. Marzo", "04. Abril", "05. Mayo", "06. Junio", "07. Julio", "08. Agosto", "09. Septiembre", "10. Octubre", "11. Noviembre", "12. Diciembre"];
   const mesesList = mesesOpt.length ? mesesOpt : MESES_LIST;
   const añoActual = años[0] || new Date().getFullYear();
@@ -179,8 +180,6 @@ export default function DashboardPage() {
   const totalActual = stats.porAño[añoActual] || 0;
   const totalAnterior = stats.porAño[añoAnterior] || 0;
   const crecimiento = totalAnterior > 0 ? ((totalActual - totalAnterior) / totalAnterior * 100).toFixed(1) : "—";
-
-  const otasList = [...new Set(otas.length ? otas : Object.keys(stats.porOta || {}))].sort();
 
   return (
     <div className="space-y-6">

@@ -44,10 +44,17 @@ export async function GET(req: NextRequest) {
     };
 
     let filtered = rows;
-    if (payload.role === "client" && payload.clienteNombre) {
-      filtered = filtered.filter((r) => r.cliente === payload.clienteNombre);
+    const clienteMatch = (rowCliente: string, filterCliente: string) =>
+      String(rowCliente || "").trim().toLowerCase() === String(filterCliente || "").trim().toLowerCase();
+
+    if (payload.role === "client") {
+      if (payload.clienteNombre) {
+        filtered = filtered.filter((r) => clienteMatch(r.cliente, payload.clienteNombre!));
+      } else {
+        filtered = [];
+      }
     } else if (clienteNombre) {
-      filtered = filtered.filter((r) => r.cliente === clienteNombre);
+      filtered = filtered.filter((r) => clienteMatch(r.cliente, clienteNombre));
     }
     if (mesList.length) filtered = filtered.filter((r) => mesList.some((m) => mesMatches(r.mes, m)));
     if (otaList.length) filtered = filtered.filter((r) => otaList.includes(String(r.ota || "").trim()));
