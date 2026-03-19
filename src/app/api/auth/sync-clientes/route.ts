@@ -2,13 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { supabase } from "@/lib/supabase";
 import { verifyToken } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/super-admin";
 import { fetchSheetData } from "@/lib/google-sheets";
-
-const SUPER_ADMIN = "admin@2ota.com";
-
-function isSuperAdmin(payload: { email?: string } | null): boolean {
-  return !!payload && payload.email === SUPER_ADMIN;
-}
 
 /**
  * POST: Sincroniza usuarios cliente desde Google Sheets.

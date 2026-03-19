@@ -208,7 +208,7 @@ export default function UsuariosPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold text-slate-800">Gestión de usuarios</h1>
-      <p className="text-slate-600 text-sm">Solo el super admin (admin@2ota.com) puede crear y eliminar usuarios. Para clientes: usuario = nombre del cliente, contraseña = cliente123.</p>
+      <p className="text-slate-600 text-sm">Solo los super admins (Alexandra, Samuel) pueden crear y eliminar usuarios. Para clientes: usuario = nombre del cliente, contraseña = cliente123.</p>
 
       <div id="crear-usuario-form" className="p-6 bg-white rounded-xl border border-slate-200">
         <h2 className="font-medium text-slate-800 mb-4">Crear usuario</h2>

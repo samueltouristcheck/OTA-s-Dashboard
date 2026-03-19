@@ -26,7 +26,10 @@ export function DashboardTable({ stats }: Props) {
   }));
   const porOtaRows = Object.entries(stats.porOta).sort((a, b) => b[1] - a[1]).map(([ota, valor]) => ({ concepto: ota, valor }));
   const porTipoRows = Object.entries(stats.porTipo).sort((a, b) => b[1] - a[1]).map(([tipo, valor]) => ({ concepto: tipo, valor }));
-  const porProductoRows = Object.entries(stats.porProducto).sort((a, b) => b[1] - a[1]).map(([prod, valor]) => ({ concepto: prod, valor }));
+  const porProductoRows = Object.entries(stats.porProducto)
+    .filter(([prod]) => prod?.trim() && prod.trim() !== "General")
+    .sort((a, b) => b[1] - a[1])
+    .map(([prod, valor]) => ({ concepto: prod, valor }));
 
   return (
     <div className="space-y-6">

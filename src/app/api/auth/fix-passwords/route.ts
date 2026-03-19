@@ -2,12 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { supabase } from "@/lib/supabase";
 import { verifyToken } from "@/lib/auth";
-
-const SUPER_ADMIN = "admin@2ota.com";
-
-function isSuperAdmin(payload: { email?: string } | null): boolean {
-  return !!payload && payload.email === SUPER_ADMIN;
-}
+import { isSuperAdmin } from "@/lib/super-admin";
 
 /**
  * POST: Fuerza el restablecimiento de TODAS las contraseñas de clientes a cliente123 (bcrypt).

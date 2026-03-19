@@ -130,7 +130,7 @@ export default function ConfigPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error");
       const u = JSON.parse(localStorage.getItem("user") || "{}");
-      u.clienteLogoUrl = data.logoUrl;
+      u.clienteLogoUrl = data.logoUrl ?? null;
       localStorage.setItem("user", JSON.stringify(u));
       window.dispatchEvent(new Event("user-updated"));
       setMessage({ type: "ok", text: "Logo guardado correctamente" });

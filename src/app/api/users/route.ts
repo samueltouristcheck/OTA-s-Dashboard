@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { isSuperAdmin } from "@/lib/super-admin";
 import bcrypt from "bcryptjs";
-
-const SUPER_ADMIN = "admin@2ota.com";
-
-function isSuperAdmin(payload: { email?: string } | null): boolean {
-  return !!payload && payload.email === SUPER_ADMIN;
-}
 
 /**
  * GET: Lista usuarios (solo super admin)

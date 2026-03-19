@@ -1,5 +1,8 @@
 "use client";
 
+import { Download } from "lucide-react";
+import * as XLSX from "xlsx";
+
 const MES_ORDER = ["01. Enero", "02. Febrero", "03. Marzo", "04. Abril", "05. Mayo", "06. Junio", "07. Julio", "08. Agosto", "09. Septiembre", "10. Octubre", "11. Noviembre", "12. Diciembre"];
 const MESES_NOMBRES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 
@@ -77,8 +80,53 @@ export function ResumenVentasTable({ ventas }: { ventas: Venta[] }) {
     );
   }
 
+  const exportData: string[][] = [
+    ["OTA", "Tipo de Entrada", ...MES_ORDER.map((m) => m.replace(/^\d+\.\s*/, ""))],
+  ];
+  let currentOta = "";
+  for (const row of rows) {
+    if (row.ota) currentOta = row.ota;
+    const vals = row.valores.map((v) => (v === 0 ? "" : String(v)));
+    exportData.push([row.tipo === "Total" ? "" : currentOta, row.tipo, ...vals]);
+  }
+
+  const downloadCSV = () => {
+    const csv = exportData.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "resumen-ventas-otas.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadExcel = () => {
+    const ws = XLSX.utils.aoa_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Resumen Ventas");
+    XLSX.writeFile(wb, "resumen-ventas-otas.xlsx");
+  };
+
   return (
-    <div className="overflow-x-auto rounded-lg border border-slate-300 bg-white">
+    <div className="space-y-3">
+      <div className="flex gap-2 justify-end">
+        <button
+          onClick={downloadCSV}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50"
+        >
+          <Download className="w-4 h-4" />
+          Descargar CSV
+        </button>
+        <button
+          onClick={downloadExcel}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50"
+        >
+          <Download className="w-4 h-4" />
+          Descargar Excel
+        </button>
+      </div>
+      <div className="overflow-x-auto rounded-lg border border-slate-300 bg-white">
       <table className="min-w-full text-sm border-collapse">
         <thead>
           <tr className="bg-slate-900 text-white">
@@ -131,6 +179,7 @@ export function ResumenVentasTable({ ventas }: { ventas: Venta[] }) {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

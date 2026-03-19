@@ -266,15 +266,17 @@ export function DashboardContent({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className={`grid grid-cols-1 ${Object.keys(stats.porProducto || {}).filter((p) => p?.trim() && p.trim() !== "General").length > 0 ? "lg:grid-cols-2" : ""} gap-6`}>
         <div className="p-4 bg-white rounded-xl border border-slate-200">
           <h3 className="font-medium text-slate-800 mb-4">Tipo de entrada</h3>
           <ChartPie data={pieData} />
         </div>
-        <div className="p-4 bg-white rounded-xl border border-slate-200">
-          <h3 className="font-medium text-slate-800 mb-4">Ventas por producto</h3>
-          <ChartBar data={Object.entries(stats.porProducto).map(([name, entradas]) => ({ name, entradas }))} />
-        </div>
+        {Object.keys(stats.porProducto || {}).filter((p) => p?.trim() && p.trim() !== "General").length > 0 && (
+          <div className="p-4 bg-white rounded-xl border border-slate-200">
+            <h3 className="font-medium text-slate-800 mb-4">Ventas por producto</h3>
+            <ChartBar data={Object.entries(stats.porProducto).map(([name, entradas]) => ({ name, entradas }))} />
+          </div>
+        )}
       </div>
 
       <div className="p-6 bg-white rounded-xl border-2 border-slate-200 shadow-sm">

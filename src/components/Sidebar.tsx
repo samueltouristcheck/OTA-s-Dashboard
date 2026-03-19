@@ -17,18 +17,35 @@ const nav = [
 
 export function Sidebar() {
   const path = usePathname();
-  const [user, setUser] = useState<{ role?: string; username?: string; clienteNombre?: string; clienteLogoUrl?: string } | null>(null);
+  const [user, setUser] = useState<{ role?: string; username?: string; clienteId?: string; clienteNombre?: string; clienteLogoUrl?: string } | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoError, setLogoError] = useState(false);
 
   function loadUser() {
     try {
-      setUser(JSON.parse(localStorage.getItem("user") || "{}"));
+      const u = JSON.parse(localStorage.getItem("user") || "{}");
+      setUser(u);
+      setLogoError(false);
+      return u;
     } catch {
       setUser(null);
+      return null;
     }
   }
+
   useEffect(() => {
-    loadUser();
-    const onStorage = () => loadUser();
+    const u = loadUser();
+    if (u?.clienteLogoUrl) {
+      setLogoUrl(u.clienteLogoUrl);
+      setLogoError(false);
+    }
+    const onStorage = () => {
+      const updated = loadUser();
+      if (updated?.clienteLogoUrl) {
+        setLogoUrl(updated.clienteLogoUrl);
+        setLogoError(false);
+      }
+    };
     window.addEventListener("storage", onStorage);
     window.addEventListener("user-updated", onStorage);
     return () => {
@@ -37,6 +54,23 @@ export function Sidebar() {
     };
   }, []);
 
+  useEffect(() => {
+    const u = user ?? JSON.parse(localStorage.getItem("user") || "{}");
+    const token = localStorage.getItem("token");
+    if (u?.clienteId && token) {
+      fetch("/api/config/logo", { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d?.logoUrl) setLogoUrl(d.logoUrl);
+          else setLogoUrl(u?.clienteLogoUrl ?? null);
+        })
+        .catch(() => setLogoUrl(u?.clienteLogoUrl ?? null));
+    } else {
+      setLogoUrl(u?.clienteLogoUrl ?? null);
+    }
+  }, [user?.clienteId, user?.clienteLogoUrl]);
+
+  const displayLogo = logoUrl && !logoError;
   const isAdmin = user?.role === "admin";
   const isSuperAdmin = SUPER_ADMINS.includes(user?.username || "");
   const miPerfilHref = user?.clienteNombre ? `/dashboard/cliente/${encodeURIComponent(user.clienteNombre)}` : null;
@@ -52,9 +86,15 @@ export function Sidebar() {
   return (
     <aside className="fixed left-0 top-0 h-screen w-56 border-r border-slate-200 bg-white p-4 flex flex-col z-30">
       <div className="flex-1">
-        {user?.clienteLogoUrl ? (
+        {displayLogo ? (
           <Link href="/dashboard" className="block mb-4 -mx-4 px-4">
-            <img src={user.clienteLogoUrl} alt="Logo cliente" className="w-full h-12 object-contain object-left" />
+            <img
+              src={logoUrl!}
+              alt="Logo cliente"
+              className="w-full h-12 object-contain object-left"
+              referrerPolicy="no-referrer"
+              onError={() => setLogoError(true)}
+            />
           </Link>
         ) : (
           <div className="h-14 mb-4" />
