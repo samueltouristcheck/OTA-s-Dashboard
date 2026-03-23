@@ -129,7 +129,7 @@ export function Sidebar() {
       </div>
       <div className="pt-4 mt-auto border-t border-slate-200">
         <Link href={miPerfilHref || "/dashboard"} className="block -mx-4 px-4">
-          <img src="/tourischeck.jpg" alt="OTA Sales" className="w-full h-auto object-contain" />
+          <img src="/tourischeck.png" alt="Touristcheck" className="w-full h-auto object-contain" />
         </Link>
       </div>
     </aside>
