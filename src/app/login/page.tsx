@@ -40,7 +40,10 @@ export default function LoginPage() {
   return (
     <div
       className="min-h-screen flex items-center justify-center bg-cover bg-center bg-no-repeat relative"
-      style={{ backgroundImage: "url(https://images.unsplash.com/photo-1583422409516-2895a77efded?w=1920)" }}
+      style={{
+        backgroundImage:
+          "url(https://images.unsplash.com/photo-1543783207-ec62e18d67a9?w=1920&q=80)",
+      }}
     >
       <div className="absolute inset-0 bg-slate-900/50" />
       <div className="relative z-10 w-full max-w-sm p-8 bg-white/95 backdrop-blur rounded-xl shadow-xl border border-slate-200">
