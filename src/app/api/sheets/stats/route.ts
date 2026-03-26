@@ -90,11 +90,23 @@ export async function GET(req: NextRequest) {
       return acc;
     }, {} as Record<number, number>);
 
-    const tipos = [...new Set(rows.map((r) => String(r.tipoEntrada || "").trim()).filter(Boolean))].sort();
-    const otas = [...new Set(rows.map((r) => String(r.ota || "").trim()).filter(Boolean))].sort();
-    const años = [...new Set(rows.map((r) => r.año).filter(Boolean))].sort((a, b) => b - a);
+    // Opciones de filtro: solo datos del cliente (o del cliente elegido por admin), no toda la hoja
+    let rowsForFilterOptions = rows;
+    if (payload.role === "client") {
+      if (payload.clienteNombre) {
+        rowsForFilterOptions = rows.filter((r) => clienteMatch(r.cliente, payload.clienteNombre!));
+      } else {
+        rowsForFilterOptions = [];
+      }
+    } else if (clienteNombre) {
+      rowsForFilterOptions = rows.filter((r) => clienteMatch(r.cliente, clienteNombre));
+    }
+
+    const tipos = [...new Set(rowsForFilterOptions.map((r) => String(r.tipoEntrada || "").trim()).filter(Boolean))].sort();
+    const otas = [...new Set(rowsForFilterOptions.map((r) => String(r.ota || "").trim()).filter(Boolean))].sort();
+    const años = [...new Set(rowsForFilterOptions.map((r) => r.año).filter(Boolean))].sort((a, b) => b - a);
     const MES_ORDER = ["01. Enero", "02. Febrero", "03. Marzo", "04. Abril", "05. Mayo", "06. Junio", "07. Julio", "08. Agosto", "09. Septiembre", "10. Octubre", "11. Noviembre", "12. Diciembre"];
-    const mesesEnSheet = new Set(rows.map((r) => String(r.mes || "").trim()).filter(Boolean));
+    const mesesEnSheet = new Set(rowsForFilterOptions.map((r) => String(r.mes || "").trim()).filter(Boolean));
     const meses = MES_ORDER.filter((m) => mesesEnSheet.has(m) || [...mesesEnSheet].some((s) => s.includes(m.replace(/^\d+\.\s*/, ""))));
 
     return NextResponse.json({
