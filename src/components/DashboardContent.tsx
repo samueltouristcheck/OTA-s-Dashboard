@@ -55,6 +55,11 @@ export function DashboardContent({
   const [mes, setMes] = useState<string[]>([]);
   const [ota, setOta] = useState<string[]>([]);
   const [tipoEntrada, setTipoEntrada] = useState<string[]>([]);
+  /** Filtros independientes solo para la tabla resumen */
+  const [tableAño, setTableAño] = useState<number[]>([]);
+  const [tableMes, setTableMes] = useState<string[]>([]);
+  const [tableOta, setTableOta] = useState<string[]>([]);
+  const [tableTipo, setTableTipo] = useState<string[]>([]);
   const [tipos, setTipos] = useState<string[]>([]);
   const [otas, setOtas] = useState<string[]>([]);
   const [añosOpt, setAñosOpt] = useState<number[]>([]);
@@ -68,6 +73,7 @@ export function DashboardContent({
     meses?: string[];
   } | null>(null);
 
+  // Gráficos y KPIs: solo filtros del dashboard
   useEffect(() => {
     if (!token) return;
     const params = new URLSearchParams();
@@ -76,16 +82,11 @@ export function DashboardContent({
     if (ota.length) params.set("ota", ota.join(","));
     if (tipoEntrada.length) params.set("tipoEntrada", tipoEntrada.join(","));
     if (clienteId) params.set("clienteId", clienteId);
+    const headers = { Authorization: `Bearer ${token}` };
 
-    Promise.all([
-      fetch(`/api/sheets/stats?${params}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }).then((r) => r.json()),
-      fetch(`/api/sheets/data?${params}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }).then((r) => r.json()),
-    ])
-      .then(([s, v]) => {
+    fetch(`/api/sheets/stats?${params}`, { headers })
+      .then((r) => r.json())
+      .then((s) => {
         const { filterOptions, ...statsData } = s || {};
         const data = s?.total !== undefined ? statsData : { total: 0, porMes: {}, porOta: {}, porTipo: {}, porProducto: {}, porAño: {} };
         setStats(data);
@@ -93,13 +94,44 @@ export function DashboardContent({
         if (filterOptions?.otas?.length) setOtas(filterOptions.otas);
         if (filterOptions?.años?.length) setAñosOpt(filterOptions.años);
         if (filterOptions?.meses?.length) setMesesOpt(filterOptions.meses);
-        setVentas(Array.isArray(v) ? v : []);
       })
-      .catch(() => {
-        setStats({ total: 0, porMes: {}, porOta: {}, porTipo: {}, porProducto: {}, porAño: {} });
-        setVentas([]);
-      });
+      .catch(() =>
+        fetch(`/api/ventas/stats?${params}`, { headers })
+          .then((r) => r.json())
+          .then((s) => {
+            const { filterOptions, ...statsData } = s || {};
+            const data = s?.total !== undefined ? statsData : { total: 0, porMes: {}, porOta: {}, porTipo: {}, porProducto: {}, porAño: {} };
+            setStats(data);
+            if (filterOptions?.tipos?.length) setTipos(filterOptions.tipos);
+            if (filterOptions?.otas?.length) setOtas(filterOptions.otas);
+            if (filterOptions?.años?.length) setAñosOpt(filterOptions.años);
+            if (filterOptions?.meses?.length) setMesesOpt(filterOptions.meses);
+          })
+      )
+      .catch(() => setStats({ total: 0, porMes: {}, porOta: {}, porTipo: {}, porProducto: {}, porAño: {} }));
   }, [token, año, mes, ota, tipoEntrada, clienteId]);
+
+  // Tabla resumen: filtros propios
+  useEffect(() => {
+    if (!token) return;
+    const params = new URLSearchParams();
+    if (tableAño.length) params.set("año", tableAño.join(","));
+    if (tableMes.length) params.set("mes", tableMes.join(","));
+    if (tableOta.length) params.set("ota", tableOta.join(","));
+    if (tableTipo.length) params.set("tipoEntrada", tableTipo.join(","));
+    if (clienteId) params.set("clienteId", clienteId);
+    const headers = { Authorization: `Bearer ${token}` };
+
+    fetch(`/api/sheets/data?${params}`, { headers })
+      .then((r) => r.json())
+      .then((v) => setVentas(Array.isArray(v) ? v : []))
+      .catch(() =>
+        fetch(`/api/ventas?${params}`, { headers })
+          .then((r) => r.json())
+          .then((v) => setVentas(Array.isArray(v) ? v : []))
+      )
+      .catch(() => setVentas([]));
+  }, [token, tableAño, tableMes, tableOta, tableTipo, clienteId]);
 
   useEffect(() => {
     if (!token || !comparativa) {
@@ -157,9 +189,12 @@ export function DashboardContent({
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-4 items-center justify-between">
-        <h2 className="text-xl font-semibold text-slate-800">
-          Ventas de entradas{clienteId ? ` - ${clienteId}` : ""}
-        </h2>
+        <div>
+          <h2 className="text-xl font-semibold text-slate-800">
+            Ventas de entradas{clienteId ? ` - ${clienteId}` : ""}
+          </h2>
+          <p className="text-xs text-slate-500 mt-1">Gráficos y estadísticas</p>
+        </div>
         <div className="flex flex-wrap gap-2 items-center">
           {showClienteFilter && isAdmin && (
             <select className="h-9 px-3 border border-slate-200 rounded-lg text-sm" disabled>
@@ -280,8 +315,28 @@ export function DashboardContent({
       </div>
 
       <div className="p-6 bg-white rounded-xl border-2 border-slate-200 shadow-sm">
-        <h3 className="font-semibold text-slate-800 mb-4 text-lg">Resumen Ventas OTAs</h3>
-        <p className="text-xs text-slate-500 mb-3">Mes respuesta / Número de entradas</p>
+        <h3 className="font-semibold text-slate-800 mb-1 text-lg">Resumen Ventas OTAs</h3>
+        <p className="text-xs text-slate-500 mb-2">Mes respuesta / Número de entradas</p>
+        <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Filtros de la tabla</p>
+        <div className="flex flex-wrap gap-2 items-center mb-4">
+          <span className="text-xs text-slate-500">Años:</span>
+          <MultiSelect options={[...new Set(años)].map(String)} selected={tableAño.map(String)} onChange={(v) => setTableAño(v.map(Number).filter((n) => !isNaN(n)))} placeholder="Todos" />
+          <span className="text-xs text-slate-500">Tipos:</span>
+          <MultiSelect options={tiposList} selected={tableTipo} onChange={setTableTipo} placeholder="Todos" />
+          <span className="text-xs text-slate-500">Meses:</span>
+          <MultiSelect options={[...new Set(mesesList)]} selected={tableMes} onChange={setTableMes} placeholder="Todos" label={(m) => m.replace(/^\d+\.\s*/, "")} />
+          <span className="text-xs text-slate-500">OTAs:</span>
+          <MultiSelect options={otasList} selected={tableOta} onChange={setTableOta} placeholder="Todas" />
+          {(tableAño.length > 0 || tableMes.length > 0 || tableOta.length > 0 || tableTipo.length > 0) && (
+            <button
+              type="button"
+              onClick={() => { setTableAño([]); setTableMes([]); setTableOta([]); setTableTipo([]); }}
+              className="flex items-center gap-1.5 h-9 px-2.5 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-200 rounded-lg"
+            >
+              <X className="w-3.5 h-3.5" /> Limpiar tabla
+            </button>
+          )}
+        </div>
         <ResumenVentasTable ventas={ventas} />
       </div>
     </div>
