@@ -1,4 +1,5 @@
 import { google } from "googleapis";
+import { normalitzaClientSheet } from "@/lib/clientes-sheet";
 
 export type SheetRow = {
   cliente: string;
@@ -24,11 +25,10 @@ const COLUMN_ALIASES: Record<string, string[]> = {
   numeroEntradas: ["Número de entradas", "Numero de entradas", "numeroEntradas", "entradas"],
 };
 
-// Columna de producto por cliente: Golondrinas=H(7), Big Fun=J(9), Alsa=L(11)
+// Columna de producto por cliente: Golondrinas=H(7), Big Fun=J(9)
 const CLIENTE_PRODUCTO_COLUMNS: Record<string, number> = {
   golondrinas: 7,
   "big fun": 9,
-  alsa: 11,
 };
 
 function findColumnIndex(headers: string[]): Record<string, number> {
@@ -133,7 +133,11 @@ export async function fetchSheetData(
 
   for (let i = 1; i < rows.length; i++) {
     const parsed = parseRow(rows[i], indices);
-    if (parsed) data.push(parsed);
+    if (!parsed) continue;
+    const clienteOk = normalitzaClientSheet(parsed.cliente);
+    if (!clienteOk) continue;
+    parsed.cliente = clienteOk;
+    data.push(parsed);
   }
 
   return data;
