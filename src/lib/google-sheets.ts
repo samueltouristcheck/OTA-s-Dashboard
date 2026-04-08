@@ -42,22 +42,49 @@ function isBigFunCliente(clienteNorm: string) {
   return clienteNorm.includes("big fun");
 }
 
-/** MAPFRE: dues columnes J,K (9,10) per Kbr i Sala Recoletos (mateixa idea que Big Fun). */
-const MAPFRE_PRODUCT_COLS = [9, 10] as const;
-const MAPFRE_DEFAULT_PRODUCT_NAMES = ["Kbr", "Sala Recoletos"] as const;
-
 function isMapfreCliente(clienteNorm: string) {
   return clienteNorm.includes("mapfre");
 }
 
-function expandMapfreProductRows(
+const MAPFRE_DEFAULT_PRODUCT_NAMES = ["Kbr", "Sala Recoletos"] as const;
+
+function normHeaderCell(x: string | undefined): string {
+  return String(x ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+/** Columnes de producte MAPFRE per títol de la fila 0 (més fiable que J/K fixos). */
+function getMapfreProductColumnIndices(headers: string[]): [number, number] | null {
+  const tagged = headers.map((h, i) => ({ i, t: normHeaderCell(h) }));
+  const kbr = tagged.find(({ t }) => t.includes("kbr"));
+  const sala = tagged.find(({ t }) => /recoletos/.test(t) || (t.includes("sala") && t.includes("mapfre")));
+  if (kbr && sala && kbr.i !== sala.i) return [kbr.i, sala.i];
+  return null;
+}
+
+/**
+ * Repartiment MAPFRE en dues columnes. Preferim capçaleres "Kbr" i "Sala Recoletos".
+ * Si no hi ha títols reconeguts, només usem J,K (9,10) si almenys una té nombre > 0 (compatibilitat).
+ * Si retorna [], la fila es processa com qualsevol altre client (Número de entradas + Producto).
+ */
+function tryMapfreProductSplit(
   row: string[],
   headers: string[],
   base: Omit<SheetRow, "producto" | "numeroEntradas">
 ): SheetRow[] {
+  let pair = getMapfreProductColumnIndices(headers);
+  if (!pair) {
+    const j = parseIntCell(row[9]);
+    const k = parseIntCell(row[10]);
+    if (j <= 0 && k <= 0) return [];
+    pair = [9, 10];
+  }
   const outs: SheetRow[] = [];
-  for (let i = 0; i < MAPFRE_PRODUCT_COLS.length; i++) {
-    const col = MAPFRE_PRODUCT_COLS[i];
+  for (let i = 0; i < pair.length; i++) {
+    const col = pair[i];
     const n = parseIntCell(row[col]);
     if (n <= 0) continue;
     const fromHeader = String(headers[col] ?? "").trim();
@@ -194,27 +221,10 @@ function parseRow(row: string[], indices: Record<string, number>, headers: strin
     ];
   }
 
-  // MAPFRE: columnes J,K amb entrades per Kbr / Sala Recoletos (o columna "Producto" si no hi ha repartiment)
+  // MAPFRE: repartiment per columnes (capçalera Kbr / Sala Recoletos o J,K amb xifres); si no, mateixa lògica que "Resta"
   if (isMapfreCliente(clienteNorm)) {
-    const expanded = expandMapfreProductRows(row, headers, baseCommon);
-    if (expanded.length > 0) return expanded;
-
-    if (isNaN(numMain) || numMain <= 0) return [];
-
-    let producto = get("producto");
-    const colJ = 9;
-    if (row[colJ] !== undefined) {
-      const val = String(row[colJ] ?? "").trim();
-      if (val && !/^\d+$/.test(val.replace(/\s/g, ""))) producto = val;
-    }
-
-    return [
-      {
-        ...baseCommon,
-        numeroEntradas: numMain,
-        producto: producto || "General",
-      },
-    ];
+    const split = tryMapfreProductSplit(row, headers, baseCommon);
+    if (split.length > 0) return split;
   }
 
   // Museu d'Art de Girona: dues columnes J,K (mateix esquema que MAPFRE)
