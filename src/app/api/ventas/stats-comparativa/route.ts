@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
     const mesParam = searchParams.get("mes");
     const otaParam = searchParams.get("ota");
     const tipoParam = searchParams.get("tipoEntrada");
+    const productoParam = searchParams.get("producto");
     let filterClienteId = payload.role === "client" ? payload.clienteId : clienteId;
     if (filterClienteId && !filterClienteId.startsWith("cliente-")) {
       const { data: cl } = await supabase.from("Cliente").select("id").ilike("nombre", filterClienteId).limit(1).maybeSingle();
@@ -36,11 +37,13 @@ export async function GET(req: NextRequest) {
     const mesList = mesParam ? mesParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
     const otaList = otaParam ? otaParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
     const tipoList = tipoParam ? tipoParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
+    const productoList = productoParam ? productoParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
 
     if (añoList.length) ventas = ventas.filter((v) => añoList.includes(v.ano));
     if (mesList.length) ventas = ventas.filter((v) => mesList.some((m) => v.mes === m || v.mes?.includes(m.replace(/^\d+\.\s*/, ""))));
     if (otaList.length) ventas = ventas.filter((v) => otaList.includes(v.ota || ""));
     if (tipoList.length) ventas = ventas.filter((v) => tipoList.includes(v.tipoEntrada || ""));
+    if (productoList.length) ventas = ventas.filter((v) => productoList.includes(String(v.producto || "").trim()));
 
     const filtered = ventas;
 

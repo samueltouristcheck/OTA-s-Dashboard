@@ -3,6 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { DashboardContent } from "@/components/DashboardContent";
+import { clienteSheetsEquiv } from "@/lib/clientes-sheet";
 import Link from "next/link";
 import { X, ArrowLeft } from "lucide-react";
 
@@ -25,7 +26,7 @@ export default function VistaClientePage() {
       router.push("/login");
       return;
     }
-    const canView = isAdmin || clienteNombre === nombre;
+    const canView = isAdmin || (!!clienteNombre && !!nombre && clienteSheetsEquiv(clienteNombre, nombre));
     if (!canView) {
       router.push("/dashboard");
     }
@@ -39,7 +40,7 @@ export default function VistaClientePage() {
     );
   }
 
-  const canView = isAdmin || clienteNombre === nombre;
+  const canView = isAdmin || (!!clienteNombre && !!nombre && clienteSheetsEquiv(clienteNombre, nombre));
   if (!token || !canView) {
     return null;
   }

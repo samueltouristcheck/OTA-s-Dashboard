@@ -3,6 +3,7 @@ import { verifyToken } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 import { fetchSheetData } from "@/lib/google-sheets";
+import { clienteSheetsEquiv } from "@/lib/clientes-sheet";
 
 const MES_ORDER = ["01. Enero", "02. Febrero", "03. Marzo", "04. Abril", "05. Mayo", "06. Junio", "07. Julio", "08. Agosto", "09. Septiembre", "10. Octubre", "11. Noviembre", "12. Diciembre"];
 
@@ -31,10 +32,12 @@ export async function GET(req: NextRequest) {
     const mesParam = searchParams.get("mes");
     const otaParam = searchParams.get("ota");
     const tipoParam = searchParams.get("tipoEntrada");
+    const productoParam = searchParams.get("producto");
     const añoList = añoParam ? añoParam.split(",").map((s) => parseInt(s.trim())).filter((n) => !isNaN(n)) : [];
     const mesList = mesParam ? mesParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
     const otaList = otaParam ? otaParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
     const tipoList = tipoParam ? tipoParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
+    const productoList = productoParam ? productoParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
 
     const mesMatches = (rowMes: string, filterMes: string) => {
       if (!filterMes) return true;
@@ -46,8 +49,7 @@ export async function GET(req: NextRequest) {
     };
 
     let filtered = rows;
-    const clienteMatch = (rowCliente: string, filterCliente: string) =>
-      String(rowCliente || "").trim().toLowerCase() === String(filterCliente || "").trim().toLowerCase();
+    const clienteMatch = clienteSheetsEquiv;
 
     if (payload.role === "client") {
       if (payload.clienteNombre) {
@@ -61,6 +63,7 @@ export async function GET(req: NextRequest) {
     if (mesList.length) filtered = filtered.filter((r) => mesList.some((m) => mesMatches(r.mes, m)));
     if (otaList.length) filtered = filtered.filter((r) => otaList.includes(String(r.ota || "").trim()));
     if (tipoList.length) filtered = filtered.filter((r) => tipoList.includes(String(r.tipoEntrada || "").trim()));
+    if (productoList.length) filtered = filtered.filter((r) => productoList.includes(String(r.producto || "").trim()));
 
     if (comparativa === "interanual") {
       let años = [...new Set(filtered.map((r) => r.año))].sort((a, b) => b - a);

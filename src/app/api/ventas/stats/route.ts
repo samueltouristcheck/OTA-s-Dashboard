@@ -14,6 +14,8 @@ export async function GET(req: NextRequest) {
     const año = searchParams.get("año");
     const mes = searchParams.get("mes");
     const ota = searchParams.get("ota");
+    const productoParam = searchParams.get("producto");
+    const productoList = productoParam ? productoParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
     const clienteId = searchParams.get("clienteId");
 
     let filterClienteId = payload?.role === "client" ? payload.clienteId : clienteId;
@@ -22,11 +24,18 @@ export async function GET(req: NextRequest) {
       if (cl) filterClienteId = cl.id;
     }
 
+    let queryOpts = supabase.from("Venta").select("*");
+    if (filterClienteId) queryOpts = queryOpts.eq("clienteId", filterClienteId);
+    const { data: ventasForOptions } = await queryOpts;
+    const rowsOpts = ventasForOptions || [];
+
     let query = supabase.from("Venta").select("*");
     if (filterClienteId) query = query.eq("clienteId", filterClienteId);
     if (año) query = query.eq("ano", parseInt(año));
     if (mes) query = query.eq("mes", mes);
     if (ota) query = query.eq("ota", ota);
+    if (productoList.length === 1) query = query.eq("producto", productoList[0]);
+    if (productoList.length > 1) query = query.in("producto", productoList);
 
     const { data: ventas, error } = await query;
     if (error) throw error;
@@ -56,11 +65,12 @@ export async function GET(req: NextRequest) {
     }, {});
 
     const MES_ORDER = ["01. Enero", "02. Febrero", "03. Marzo", "04. Abril", "05. Mayo", "06. Junio", "07. Julio", "08. Agosto", "09. Septiembre", "10. Octubre", "11. Noviembre", "12. Diciembre"];
-    const tipos = [...new Set(list.map((v: { tipoEntrada: string }) => String(v.tipoEntrada || "").trim()).filter(Boolean))].sort();
-    const otas = [...new Set(list.map((v: { ota: string }) => String(v.ota || "").trim()).filter(Boolean))].sort();
-    const años = [...new Set(list.map((v: { ano: number }) => v.ano).filter(Boolean))].sort((a, b) => b - a);
-    const mesesEnList = new Set(list.map((v: { mes: string }) => String(v.mes || "").trim()).filter(Boolean));
+    const tipos = [...new Set(rowsOpts.map((v: { tipoEntrada: string }) => String(v.tipoEntrada || "").trim()).filter(Boolean))].sort();
+    const otas = [...new Set(rowsOpts.map((v: { ota: string }) => String(v.ota || "").trim()).filter(Boolean))].sort();
+    const años = [...new Set(rowsOpts.map((v: { ano: number }) => v.ano).filter(Boolean))].sort((a, b) => b - a);
+    const mesesEnList = new Set(rowsOpts.map((v: { mes: string }) => String(v.mes || "").trim()).filter(Boolean));
     const meses = MES_ORDER.filter((m) => mesesEnList.has(m) || [...mesesEnList].some((s) => s.includes(m.replace(/^\d+\.\s*/, ""))));
+    const productos = [...new Set(rowsOpts.map((v: { producto: string }) => String(v.producto || "").trim()).filter(Boolean))].sort();
 
     return NextResponse.json({
       total,
@@ -69,7 +79,7 @@ export async function GET(req: NextRequest) {
       porTipo,
       porProducto,
       porAño,
-      filterOptions: { tipos, otas, años, meses: meses.length ? meses : MES_ORDER },
+      filterOptions: { tipos, otas, años, meses: meses.length ? meses : MES_ORDER, productos },
     });
   } catch (e) {
     console.error(e);

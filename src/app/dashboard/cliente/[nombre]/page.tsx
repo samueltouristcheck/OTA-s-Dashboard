@@ -3,6 +3,7 @@
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { DashboardContent } from "@/components/DashboardContent";
+import { clienteSheetsEquiv } from "@/lib/clientes-sheet";
 
 export default function ClientePerfilPage() {
   const params = useParams();
@@ -24,7 +25,8 @@ export default function ClientePerfilPage() {
     );
   }
 
-  const canView = isAdmin || (clienteNombre && nombre && clienteNombre.trim().toLowerCase() === nombre.trim().toLowerCase());
+  const canView =
+    isAdmin || (clienteNombre && nombre && clienteSheetsEquiv(clienteNombre, nombre));
   if (!canView) {
     return (
       <div className="p-6 bg-amber-50 border border-amber-200 rounded-xl text-amber-800">

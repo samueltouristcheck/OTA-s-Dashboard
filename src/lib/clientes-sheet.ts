@@ -33,3 +33,14 @@ export function normalitzaClientSheet(cliente: string): string | null {
   if (ALIAS_CANONIC[k]) return ALIAS_CANONIC[k];
   return t;
 }
+
+/**
+ * Compara el nom de client de la fila (ja canònic després d'importar la fulla) amb el del token o la BD.
+ * Museu Tàpies i Fundació Tàpies han de coincidir (mateixa normalització que {@link normalitzaClientSheet}).
+ */
+export function clienteSheetsEquiv(rowCliente: string, filterCliente: string): boolean {
+  const r = normalitzaClientSheet(rowCliente) ?? rowCliente.trim();
+  const f = normalitzaClientSheet(filterCliente) ?? filterCliente.trim();
+  if (!r || !f) return false;
+  return r.toLowerCase() === f.toLowerCase();
+}

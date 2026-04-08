@@ -49,13 +49,16 @@ export default function DashboardPage() {
   const [mes, setMes] = useState<string[]>([]);
   const [ota, setOta] = useState<string[]>([]);
   const [tipoEntrada, setTipoEntrada] = useState<string[]>([]);
+  const [producto, setProducto] = useState<string[]>([]);
   const [tableAño, setTableAño] = useState<number[]>([]);
   const [tableMes, setTableMes] = useState<string[]>([]);
   const [tableOta, setTableOta] = useState<string[]>([]);
   const [tableTipo, setTableTipo] = useState<string[]>([]);
+  const [tableProducto, setTableProducto] = useState<string[]>([]);
   const [comparativa, setComparativa] = useState<string>("");
   const [tipos, setTipos] = useState<string[]>([]);
   const [otas, setOtas] = useState<string[]>([]);
+  const [productos, setProductos] = useState<string[]>([]);
   const [añosOpt, setAñosOpt] = useState<number[]>([]);
   const [mesesOpt, setMesesOpt] = useState<string[]>([]);
 
@@ -90,6 +93,7 @@ export default function DashboardPage() {
     if (mes.length) params.set("mes", mes.join(","));
     if (ota.length) params.set("ota", ota.join(","));
     if (tipoEntrada.length) params.set("tipoEntrada", tipoEntrada.join(","));
+    if (producto.length) params.set("producto", producto.join(","));
     if (clienteId && isAdmin) params.set("clienteId", clienteId);
 
     const headers = { Authorization: `Bearer ${token}` };
@@ -103,6 +107,7 @@ export default function DashboardPage() {
         if (filterOptions?.otas?.length) setOtas(filterOptions.otas);
         if (filterOptions?.años?.length) setAñosOpt(filterOptions.años);
         if (filterOptions?.meses?.length) setMesesOpt(filterOptions.meses);
+        if (filterOptions?.productos?.length) setProductos(filterOptions.productos);
       })
       .catch(() =>
         fetch(`/api/ventas/stats?${params}`, { headers })
@@ -115,10 +120,11 @@ export default function DashboardPage() {
             if (filterOptions?.otas?.length) setOtas(filterOptions.otas);
             if (filterOptions?.años?.length) setAñosOpt(filterOptions.años);
             if (filterOptions?.meses?.length) setMesesOpt(filterOptions.meses);
+            if (filterOptions?.productos?.length) setProductos(filterOptions.productos);
           })
       )
       .catch(() => setStats({ total: 0, porMes: {}, porOta: {}, porTipo: {}, porProducto: {}, porAño: {} }));
-  }, [token, año, mes, ota, tipoEntrada, clienteId, isAdmin]);
+  }, [token, año, mes, ota, tipoEntrada, producto, clienteId, isAdmin]);
 
   useEffect(() => {
     if (!token) return;
@@ -127,6 +133,7 @@ export default function DashboardPage() {
     if (tableMes.length) params.set("mes", tableMes.join(","));
     if (tableOta.length) params.set("ota", tableOta.join(","));
     if (tableTipo.length) params.set("tipoEntrada", tableTipo.join(","));
+    if (tableProducto.length) params.set("producto", tableProducto.join(","));
     if (clienteId && isAdmin) params.set("clienteId", clienteId);
 
     const headers = { Authorization: `Bearer ${token}` };
@@ -139,7 +146,7 @@ export default function DashboardPage() {
           .then((v) => setVentas(Array.isArray(v) ? v : []))
       )
       .catch(() => setVentas([]));
-  }, [token, tableAño, tableMes, tableOta, tableTipo, clienteId, isAdmin]);
+  }, [token, tableAño, tableMes, tableOta, tableTipo, tableProducto, clienteId, isAdmin]);
 
   useEffect(() => {
     if (!token || !comparativa) {
@@ -152,6 +159,7 @@ export default function DashboardPage() {
     if (mes.length) params.set("mes", mes.join(","));
     if (ota.length) params.set("ota", ota.join(","));
     if (tipoEntrada.length) params.set("tipoEntrada", tipoEntrada.join(","));
+    if (producto.length) params.set("producto", producto.join(","));
     if (clienteId && isAdmin) params.set("clienteId", clienteId);
 
     const headers = { Authorization: `Bearer ${token}` };
@@ -164,7 +172,7 @@ export default function DashboardPage() {
           .then((d) => setComparativaData(d.tipo ? d : null))
           .catch(() => setComparativaData(null))
       );
-  }, [token, comparativa, año, mes, ota, tipoEntrada, clienteId, isAdmin]);
+  }, [token, comparativa, año, mes, ota, tipoEntrada, producto, clienteId, isAdmin]);
 
   if (!stats) {
     return (
@@ -190,6 +198,8 @@ export default function DashboardPage() {
   const años = añosOpt.length ? añosOpt : Object.keys(stats.porAño).map(Number).sort((a, b) => b - a);
   const tiposList = [...new Set(tipos.length ? tipos : Object.keys(stats.porTipo || {}))].sort();
   const otasList = [...new Set(otas.length ? otas : Object.keys(stats.porOta || {}))].sort();
+  const productosList = [...new Set([...(productos.length ? productos : Object.keys(stats.porProducto || {}))])].filter(Boolean).sort();
+  const showProductoFilter = productosList.length > 1;
   const MESES_LIST = ["01. Enero", "02. Febrero", "03. Marzo", "04. Abril", "05. Mayo", "06. Junio", "07. Julio", "08. Agosto", "09. Septiembre", "10. Octubre", "11. Noviembre", "12. Diciembre"];
   const mesesList = mesesOpt.length ? mesesOpt : MESES_LIST;
   const añoActual = años[0] || new Date().getFullYear();
@@ -247,15 +257,21 @@ export default function DashboardPage() {
             onChange={setOta}
             placeholder="Todas"
           />
+          {showProductoFilter && (
+            <>
+              <span className="text-xs text-slate-500">Producto:</span>
+              <MultiSelect options={productosList} selected={producto} onChange={setProducto} placeholder="Todos" />
+            </>
+          )}
           <span className="text-xs text-slate-500">Comparativa:</span>
           <select value={comparativa} onChange={(e) => setComparativa(e.target.value)} className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm">
             <option value="">Ninguna</option>
             <option value="interanual">Interanual (años superpuestos)</option>
             <option value="intermensual">Intermensual (meses superpuestos)</option>
           </select>
-          {(año.length || mes.length || ota.length || tipoEntrada.length || comparativa) && (
+          {(año.length || mes.length || ota.length || tipoEntrada.length || producto.length || comparativa) && (
             <button
-              onClick={() => { setAño([]); setMes([]); setOta([]); setTipoEntrada([]); setComparativa(""); }}
+              onClick={() => { setAño([]); setMes([]); setOta([]); setTipoEntrada([]); setProducto([]); setComparativa(""); }}
               className="flex items-center gap-1.5 h-9 px-2.5 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-200 rounded-lg"
             >
               <X className="w-3.5 h-3.5" />
@@ -393,7 +409,13 @@ export default function DashboardPage() {
           />
           <span className="text-xs text-slate-500">OTAs:</span>
           <MultiSelect options={otasList} selected={tableOta} onChange={setTableOta} placeholder="Todas" />
-          {(tableAño.length > 0 || tableMes.length > 0 || tableOta.length > 0 || tableTipo.length > 0) && (
+          {showProductoFilter && (
+            <>
+              <span className="text-xs text-slate-500">Producto:</span>
+              <MultiSelect options={productosList} selected={tableProducto} onChange={setTableProducto} placeholder="Todos" />
+            </>
+          )}
+          {(tableAño.length > 0 || tableMes.length > 0 || tableOta.length > 0 || tableTipo.length > 0 || tableProducto.length > 0) && (
             <button
               type="button"
               onClick={() => {
@@ -401,6 +423,7 @@ export default function DashboardPage() {
                 setTableMes([]);
                 setTableOta([]);
                 setTableTipo([]);
+                setTableProducto([]);
               }}
               className="flex items-center gap-1.5 h-9 px-2.5 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-200 rounded-lg"
             >

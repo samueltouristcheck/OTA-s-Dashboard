@@ -3,6 +3,7 @@ import { verifyToken } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 import { fetchSheetData } from "@/lib/google-sheets";
+import { clienteSheetsEquiv } from "@/lib/clientes-sheet";
 
 export async function GET(req: NextRequest) {
   try {
@@ -28,10 +29,12 @@ export async function GET(req: NextRequest) {
     const mesParam = searchParams.get("mes");
     const otaParam = searchParams.get("ota");
     const tipoParam = searchParams.get("tipoEntrada");
+    const productoParam = searchParams.get("producto");
     const añoList = añoParam ? añoParam.split(",").map((s) => parseInt(s.trim())).filter((n) => !isNaN(n)) : [];
     const mesList = mesParam ? mesParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
     const otaList = otaParam ? otaParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
     const tipoList = tipoParam ? tipoParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
+    const productoList = productoParam ? productoParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
 
     const mesMatches = (rowMes: string, filterMes: string) => {
       if (!filterMes) return true;
@@ -42,8 +45,7 @@ export async function GET(req: NextRequest) {
       return rowNorm === filterName || rowNorm.endsWith(filterName);
     };
 
-    const clienteMatch = (rowCliente: string, filterCliente: string) =>
-      String(rowCliente || "").trim().toLowerCase() === String(filterCliente || "").trim().toLowerCase();
+    const clienteMatch = clienteSheetsEquiv;
 
     const applyFilters = (data: typeof rows, exclude?: { mes?: boolean; ota?: boolean; tipo?: boolean }) => {
       let f = [...data];
@@ -60,6 +62,7 @@ export async function GET(req: NextRequest) {
       if (mesList.length && !exclude?.mes) f = f.filter((r) => mesList.some((m) => mesMatches(r.mes, m)));
       if (otaList.length && !exclude?.ota) f = f.filter((r) => otaList.includes(String(r.ota || "").trim()));
       if (tipoList.length && !exclude?.tipo) f = f.filter((r) => tipoList.includes(String(r.tipoEntrada || "").trim()));
+      if (productoList.length) f = f.filter((r) => productoList.includes(String(r.producto || "").trim()));
       return f;
     };
 
@@ -108,6 +111,7 @@ export async function GET(req: NextRequest) {
     const MES_ORDER = ["01. Enero", "02. Febrero", "03. Marzo", "04. Abril", "05. Mayo", "06. Junio", "07. Julio", "08. Agosto", "09. Septiembre", "10. Octubre", "11. Noviembre", "12. Diciembre"];
     const mesesEnSheet = new Set(rowsForFilterOptions.map((r) => String(r.mes || "").trim()).filter(Boolean));
     const meses = MES_ORDER.filter((m) => mesesEnSheet.has(m) || [...mesesEnSheet].some((s) => s.includes(m.replace(/^\d+\.\s*/, ""))));
+    const productos = [...new Set(rowsForFilterOptions.map((r) => String(r.producto || "").trim()).filter(Boolean))].sort();
 
     return NextResponse.json({
       total,
@@ -116,7 +120,7 @@ export async function GET(req: NextRequest) {
       porTipo,
       porProducto,
       porAño,
-      filterOptions: { tipos, otas, años, meses: meses.length ? meses : MES_ORDER },
+      filterOptions: { tipos, otas, años, meses: meses.length ? meses : MES_ORDER, productos },
     });
   } catch (e) {
     console.error(e);

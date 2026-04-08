@@ -3,6 +3,7 @@ import { verifyToken } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 import { fetchSheetData } from "@/lib/google-sheets";
+import { clienteSheetsEquiv } from "@/lib/clientes-sheet";
 
 export async function GET(req: NextRequest) {
   try {
@@ -28,7 +29,8 @@ export async function GET(req: NextRequest) {
     const mesParam = searchParams.get("mes");
     const otaParam = searchParams.get("ota");
     const tipoParam = searchParams.get("tipoEntrada");
-    const producto = searchParams.get("producto");
+    const productoParam = searchParams.get("producto");
+    const productoList = productoParam ? productoParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
     const añoList = añoParam ? añoParam.split(",").map((s) => parseInt(s.trim())).filter((n) => !isNaN(n)) : [];
     const mesList = mesParam ? mesParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
     const otaList = otaParam ? otaParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
@@ -43,8 +45,7 @@ export async function GET(req: NextRequest) {
       return rowNorm === filterName || rowNorm.endsWith(filterName);
     };
 
-    const clienteMatch = (rowCliente: string, filterCliente: string) =>
-      String(rowCliente || "").trim().toLowerCase() === String(filterCliente || "").trim().toLowerCase();
+    const clienteMatch = clienteSheetsEquiv;
 
     let filtered = rows;
 
@@ -61,7 +62,7 @@ export async function GET(req: NextRequest) {
     if (mesList.length) filtered = filtered.filter((r) => mesList.some((m) => mesMatches(r.mes, m)));
     if (otaList.length) filtered = filtered.filter((r) => otaList.includes(String(r.ota || "").trim()));
     if (tipoList.length) filtered = filtered.filter((r) => tipoList.includes(String(r.tipoEntrada || "").trim()));
-    if (producto) filtered = filtered.filter((r) => r.producto === producto);
+    if (productoList.length) filtered = filtered.filter((r) => productoList.includes(String(r.producto || "").trim()));
 
     const ventas = filtered.map((r, i) => ({
       id: `sheet-${i}`,

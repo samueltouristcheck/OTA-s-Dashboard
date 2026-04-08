@@ -1,7 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import type { PostgrestError } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { signToken } from "@/lib/auth";
+
+/** maybeSingle/single: 0 filas → PGRST116; no es fallo de permisos ni de API. */
+function isMissingRowError(err: PostgrestError | null | undefined) {
+  return err?.code === "PGRST116";
+}
+
+function supabaseQueryFailed(err: PostgrestError | null | undefined) {
+  return Boolean(err && !isMissingRowError(err));
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,6 +33,16 @@ export async function POST(req: NextRequest) {
       .select("*")
       .eq("username", loginInput)
       .maybeSingle();
+    if (supabaseQueryFailed(e1)) {
+      console.error("[login] Supabase User (username eq):", e1);
+      return NextResponse.json(
+        {
+          error:
+            "No se pudo consultar usuarios. En el servidor hace falta SUPABASE_SERVICE_ROLE_KEY o políticas RLS que permitan leer User con la anon key.",
+        },
+        { status: 503 }
+      );
+    }
     if (!e1 && byUsername) user = byUsername;
 
     // Fallback: búsqueda case-insensitive por username
@@ -33,6 +53,16 @@ export async function POST(req: NextRequest) {
         .ilike("username", loginInput)
         .limit(1)
         .maybeSingle();
+      if (supabaseQueryFailed(e1b)) {
+        console.error("[login] Supabase User (ilike username):", e1b);
+        return NextResponse.json(
+          {
+            error:
+              "No se pudo consultar usuarios. Revisa la configuración de Supabase en Vercel (URL, anon key y opcionalmente service role).",
+          },
+          { status: 503 }
+        );
+      }
       if (!e1b && byUsernameIlike) user = byUsernameIlike;
     }
 
@@ -44,6 +74,16 @@ export async function POST(req: NextRequest) {
         .ilike("email", loginInput)
         .limit(1)
         .maybeSingle();
+      if (supabaseQueryFailed(e2)) {
+        console.error("[login] Supabase User (ilike email):", e2);
+        return NextResponse.json(
+          {
+            error:
+              "No se pudo consultar usuarios. Revisa la configuración de Supabase en Vercel (URL, anon key y opcionalmente service role).",
+          },
+          { status: 503 }
+        );
+      }
       if (!e2 && byEmail) user = byEmail;
     }
 

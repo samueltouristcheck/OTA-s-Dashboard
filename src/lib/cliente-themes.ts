@@ -1,3 +1,5 @@
+import { normalitzaClientSheet } from "./clientes-sheet";
+
 /**
  * Colors opcionals per client (dashboard client).
  * Omple amb els hex de la identitat de cada web; es poden afegir més claus amb el nom canònic del client.
@@ -12,5 +14,6 @@ export const CLIENTE_THEME: Record<string, ClienteTheme> = {
 
 export function getClientTheme(clienteNombre: string | undefined): ClienteTheme | null {
   if (!clienteNombre) return null;
-  return CLIENTE_THEME[clienteNombre] ?? null;
+  const canon = normalitzaClientSheet(clienteNombre) ?? clienteNombre.trim();
+  return CLIENTE_THEME[canon] ?? null;
 }

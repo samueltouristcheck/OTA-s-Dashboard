@@ -13,7 +13,8 @@ export async function GET(req: NextRequest) {
     const mes = searchParams.get("mes");
     const ota = searchParams.get("ota");
     const tipoEntrada = searchParams.get("tipoEntrada");
-    const producto = searchParams.get("producto");
+    const productoParam = searchParams.get("producto");
+    const productoList = productoParam ? productoParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
     const clienteId = searchParams.get("clienteId");
 
     let filterClienteId = payload?.role === "client" ? payload.clienteId : clienteId;
@@ -29,7 +30,8 @@ export async function GET(req: NextRequest) {
     if (mes) query = query.eq("mes", mes);
     if (ota) query = query.eq("ota", ota);
     if (tipoEntrada) query = query.eq("tipoEntrada", tipoEntrada);
-    if (producto) query = query.eq("producto", producto);
+    if (productoList.length === 1) query = query.eq("producto", productoList[0]);
+    if (productoList.length > 1) query = query.in("producto", productoList);
 
     const { data: ventas, error } = await query;
     if (error) throw error;
