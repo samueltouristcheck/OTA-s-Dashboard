@@ -235,13 +235,6 @@ export default function DashboardPage() {
             onChange={(v) => setAño(v.map(Number).filter((n) => !isNaN(n)))}
             placeholder="Todos"
           />
-          <span className="text-xs text-slate-500">Tipos:</span>
-          <MultiSelect
-            options={tiposList}
-            selected={tipoEntrada}
-            onChange={setTipoEntrada}
-            placeholder="Todos"
-          />
           <span className="text-xs text-slate-500">Meses:</span>
           <MultiSelect
             options={[...new Set(mesesList)]}
@@ -249,6 +242,13 @@ export default function DashboardPage() {
             onChange={setMes}
             placeholder="Todos"
             label={(m) => m.replace(/^\d+\.\s*/, "")}
+          />
+          <span className="text-xs text-slate-500">Tipos:</span>
+          <MultiSelect
+            options={tiposList}
+            selected={tipoEntrada}
+            onChange={setTipoEntrada}
+            placeholder="Todos"
           />
           <span className="text-xs text-slate-500">OTAs:</span>
           <MultiSelect
@@ -397,8 +397,6 @@ export default function DashboardPage() {
             onChange={(v) => setTableAño(v.map(Number).filter((n) => !isNaN(n)))}
             placeholder="Todos"
           />
-          <span className="text-xs text-slate-500">Tipos:</span>
-          <MultiSelect options={tiposList} selected={tableTipo} onChange={setTableTipo} placeholder="Todos" />
           <span className="text-xs text-slate-500">Meses:</span>
           <MultiSelect
             options={[...new Set(mesesList)]}
@@ -407,6 +405,8 @@ export default function DashboardPage() {
             placeholder="Todos"
             label={(m) => m.replace(/^\d+\.\s*/, "")}
           />
+          <span className="text-xs text-slate-500">Tipos:</span>
+          <MultiSelect options={tiposList} selected={tableTipo} onChange={setTableTipo} placeholder="Todos" />
           <span className="text-xs text-slate-500">OTAs:</span>
           <MultiSelect options={otasList} selected={tableOta} onChange={setTableOta} placeholder="Todas" />
           {showProductoFilter && (

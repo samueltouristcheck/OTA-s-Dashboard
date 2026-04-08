@@ -213,10 +213,10 @@ export function DashboardContent({
           )}
           <span className="text-xs text-slate-500">Años:</span>
           <MultiSelect options={[...new Set(años)].map(String)} selected={año.map(String)} onChange={(v) => setAño(v.map(Number).filter((n) => !isNaN(n)))} placeholder="Todos" />
-          <span className="text-xs text-slate-500">Tipos:</span>
-          <MultiSelect options={tiposList} selected={tipoEntrada} onChange={setTipoEntrada} placeholder="Todos" />
           <span className="text-xs text-slate-500">Meses:</span>
           <MultiSelect options={[...new Set(mesesList)]} selected={mes} onChange={setMes} placeholder="Todos" label={(m) => m.replace(/^\d+\.\s*/, "")} />
+          <span className="text-xs text-slate-500">Tipos:</span>
+          <MultiSelect options={tiposList} selected={tipoEntrada} onChange={setTipoEntrada} placeholder="Todos" />
           <span className="text-xs text-slate-500">OTAs:</span>
           <MultiSelect options={otasList} selected={ota} onChange={setOta} placeholder="Todas" />
           {showProductoFilter && (
@@ -337,10 +337,10 @@ export function DashboardContent({
         <div className="flex flex-wrap gap-2 items-center mb-4">
           <span className="text-xs text-slate-500">Años:</span>
           <MultiSelect options={[...new Set(años)].map(String)} selected={tableAño.map(String)} onChange={(v) => setTableAño(v.map(Number).filter((n) => !isNaN(n)))} placeholder="Todos" />
-          <span className="text-xs text-slate-500">Tipos:</span>
-          <MultiSelect options={tiposList} selected={tableTipo} onChange={setTableTipo} placeholder="Todos" />
           <span className="text-xs text-slate-500">Meses:</span>
           <MultiSelect options={[...new Set(mesesList)]} selected={tableMes} onChange={setTableMes} placeholder="Todos" label={(m) => m.replace(/^\d+\.\s*/, "")} />
+          <span className="text-xs text-slate-500">Tipos:</span>
+          <MultiSelect options={tiposList} selected={tableTipo} onChange={setTableTipo} placeholder="Todos" />
           <span className="text-xs text-slate-500">OTAs:</span>
           <MultiSelect options={otasList} selected={tableOta} onChange={setTableOta} placeholder="Todas" />
           {showProductoFilter && (
