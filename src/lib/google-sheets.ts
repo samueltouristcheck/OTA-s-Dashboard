@@ -151,6 +151,16 @@ function readProductoMapfreColumn(row: string[], headers: string[]): string {
   return String(row[idx] ?? "").trim();
 }
 
+/** Columna K a la fulla gran: "Producto (Girona)" — Girona Episcopal / Museu d'Art, etc. */
+function readProductoGironaColumn(row: string[], headers: string[]): string {
+  const idx = headers.findIndex((h) => {
+    const n = normHeaderCell(h);
+    return n.includes("girona") && n.includes("producto");
+  });
+  if (idx < 0) return "";
+  return String(row[idx] ?? "").trim();
+}
+
 function parseIntCell(raw: string | undefined): number {
   const n = parseInt(String(raw ?? "").replace(/\s/g, ""), 10);
   return isNaN(n) ? 0 : n;
@@ -237,16 +247,28 @@ function parseRow(row: string[], indices: Record<string, number>, headers: strin
     if (split.length > 0) return split;
   }
 
-  // Museu d'Art de Girona: dues columnes J,K (mateix esquema que MAPFRE)
+  // Museu d'Art de Girona: preferir columna "Producto (Girona)" (text); si no, repartiment J,K numèric
   if (isGironaArtCliente(clienteNorm)) {
+    const prodGir = readProductoGironaColumn(row, headers);
+    if (prodGir && !isNaN(numMain) && numMain > 0) {
+      return [
+        {
+          ...baseCommon,
+          numeroEntradas: numMain,
+          producto: prodGir,
+        },
+      ];
+    }
+
     const expanded = expandGironaArtProductRows(row, headers, baseCommon);
     if (expanded.length > 0) return expanded;
 
     if (isNaN(numMain) || numMain <= 0) return [];
 
-    let producto = get("producto");
+    let producto = readProductoGironaColumn(row, headers);
+    if (!producto) producto = get("producto");
     const colJ = 9;
-    if (row[colJ] !== undefined) {
+    if (!producto && row[colJ] !== undefined) {
       const val = String(row[colJ] ?? "").trim();
       if (val && !/^\d+$/.test(val.replace(/\s/g, ""))) producto = val;
     }
