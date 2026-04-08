@@ -141,6 +141,16 @@ function findColumnIndex(headers: string[]): Record<string, number> {
   return result;
 }
 
+/** Columna I a la fulla gran: "Producto (MAPFRE)" amb valors text KBR / Sala Recoletos. */
+function readProductoMapfreColumn(row: string[], headers: string[]): string {
+  const idx = headers.findIndex((h) => {
+    const n = normHeaderCell(h);
+    return n.includes("mapfre") && n.includes("producto");
+  });
+  if (idx < 0) return "";
+  return String(row[idx] ?? "").trim();
+}
+
 function parseIntCell(raw: string | undefined): number {
   const n = parseInt(String(raw ?? "").replace(/\s/g, ""), 10);
   return isNaN(n) ? 0 : n;
@@ -254,6 +264,10 @@ function parseRow(row: string[], indices: Record<string, number>, headers: strin
   if (isNaN(numMain)) return [];
 
   let producto = get("producto");
+  if (isMapfreCliente(clienteNorm)) {
+    const pm = readProductoMapfreColumn(row, headers);
+    if (pm) producto = pm;
+  }
   const colProducto =
     CLIENTE_PRODUCTO_COLUMNS[clienteNorm] ??
     Object.entries(CLIENTE_PRODUCTO_COLUMNS).find(([k]) => clienteNorm.includes(k))?.[1];
