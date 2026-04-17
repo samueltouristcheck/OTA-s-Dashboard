@@ -1,6 +1,8 @@
--- Datos DEMO falsos para "Registro de uso" (solo pruebas)
+-- Datos DEMO falsos para "Registro de uso" (solo entornos de prueba; NO producción)
 -- Supabase → SQL Editor → Run
 -- Requiere tabla LoginEvent (supabase-migration-registro-uso.sql)
+--
+-- Para borrar estos datos: supabase-cleanup-demo-loginevent.sql
 --
 -- Las fechas usan NOW() - intervalo: al ejecutarlo verás datos en los últimos 30/90 días.
 -- Puedes ejecutar este script varias veces (añade más filas).

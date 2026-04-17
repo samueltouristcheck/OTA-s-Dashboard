@@ -82,30 +82,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    let events = (data || []) as LoginEventRow[];
-
-    // Si la tabla está vacía, crear un registro de ejemplo para que la pantalla no quede en blanco
-    if (events.length === 0) {
-      const { count, error: countErr } = await supabase.from("LoginEvent").select("*", { count: "exact", head: true });
-
-      if (!countErr && (count ?? 0) === 0) {
-        const { error: insErr } = await supabase.from("LoginEvent").insert({
-          userId: "ejemplo-sistema",
-          username: "Registro de ejemplo (tabla recién creada)",
-          role: "admin",
-          clienteNombre: null,
-          userAgent: "OTA Dashboard — fila automática",
-        });
-        if (insErr) {
-          console.error("[registro-uso] no se pudo crear registro de ejemplo:", insErr);
-        } else {
-          const refetch = await fetchInRange();
-          if (!refetch.error && refetch.data) {
-            events = refetch.data as LoginEventRow[];
-          }
-        }
-      }
-    }
+    const events = (data || []) as LoginEventRow[];
 
     const porUsuario = new Map<string, { rows: LoginEventRow[] }>();
     for (const ev of events) {
