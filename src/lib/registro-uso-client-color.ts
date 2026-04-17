@@ -1,11 +1,9 @@
 import type { CSSProperties } from "react";
 
 /**
- * Colores por fila vía estilos inline (no depende del JIT de Tailwind).
- * Mismo cliente → mismo matiz; admins en gris azulado suave.
+ * Colores por fila vía estilos inline.
+ * Clientes: matiz repartido en todo el círculo cromático según el nombre (más contraste entre marcas).
  */
-
-const CLIENT_HUES = [199, 152, 262, 38, 346, 172, 239, 24, 187, 292, 88, 328];
 
 function hashKey(s: string): number {
   let h = 2166136261;
@@ -16,11 +14,19 @@ function hashKey(s: string): number {
   return h >>> 0;
 }
 
+/** Matiz 0–359 estable por texto (no solo verdes/azules). */
+function hueFromLabel(label: string): number {
+  const k = label.trim().toLowerCase();
+  if (!k) return 210;
+  const h = hashKey(k);
+  return (h * 47 + (h >>> 12) * 97 + (h >>> 24) * 13) % 360;
+}
+
 function clientHue(role: string, clienteNombre: string | null | undefined, username: string): number | null {
   if (role === "admin") return null;
   const key = (clienteNombre || username || "").trim().toLowerCase();
   if (!key) return null;
-  return CLIENT_HUES[hashKey(key) % CLIENT_HUES.length]!;
+  return hueFromLabel(key);
 }
 
 export function registroUsoRowStyle(
@@ -35,13 +41,13 @@ export function registroUsoRowStyle(
       borderTop: "1px solid rgb(241 245 249)",
     };
   }
+  const sat = 52 + (hashKey(clienteNombre || username || "") % 14);
   return {
-    backgroundColor: `hsl(${hue} 38% 93%)`,
+    backgroundColor: `hsl(${hue} ${sat}% 84%)`,
     borderTop: "1px solid rgb(241 245 249)",
   };
 }
 
-/** Barra izquierda en la primera celda (más visible que solo el fondo). */
 export function registroUsoFirstCellStyle(
   role: string,
   clienteNombre: string | null | undefined,
@@ -54,5 +60,6 @@ export function registroUsoFirstCellStyle(
   if (hue == null) {
     return { borderLeft: "4px solid transparent" };
   }
-  return { borderLeft: `4px solid hsl(${hue} 48% 58%)` };
+  const satBar = 58 + (hashKey((clienteNombre || username) + "bar") % 14);
+  return { borderLeft: `4px solid hsl(${hue} ${satBar}% 44%)` };
 }

@@ -56,17 +56,109 @@ function truncateUa(ua: string | null, max = 72) {
   return `${t.slice(0, max)}…`;
 }
 
-/** Lunes 00:00 hora local (ISO semana tipo Europa). */
-function startOfMondayLocal(d: Date): Date {
-  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const dow = x.getDay();
-  const offset = dow === 0 ? -6 : 1 - dow;
-  x.setDate(x.getDate() + offset);
-  x.setHours(0, 0, 0, 0);
-  return x;
+function normNombre(s: string) {
+  return s
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
-type KpiSemana = {
+function eventMatchesClienteNombre(e: LoginEventRow, nombreCatalogo: string): boolean {
+  if (e.role !== "client") return false;
+  const n = normNombre(nombreCatalogo);
+  return normNombre(e.clienteNombre || "") === n || normNombre(e.username || "") === n;
+}
+
+type ClienteCatalogo = { id: string; nombre: string };
+
+type FilaClienteLista =
+  | { kind: "catalogo"; rowKey: string; clienteId: string; nombre: string; conexiones: number; ultimaConexion: string | null }
+  | { kind: "huérfano"; rowKey: string; userId: string; nombre: string; conexiones: number; ultimaConexion: string };
+
+function ListaClientesCompleta({
+  title,
+  filas,
+  selectedKey,
+  onSelectKey,
+}: {
+  title: string;
+  filas: FilaClienteLista[];
+  selectedKey: string | null;
+  onSelectKey: (key: string) => void;
+}) {
+  return (
+    <section className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+      <h2 className="px-4 py-3 font-medium text-slate-800 border-b border-slate-100">{title}</h2>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead className="bg-slate-50">
+            <tr>
+              <th className="px-4 py-3 text-left font-medium text-slate-600">Cliente</th>
+              <th className="px-4 py-3 text-right font-medium text-slate-600">Conexiones</th>
+              <th className="px-4 py-3 text-left font-medium text-slate-600">Última conexión</th>
+              <th className="w-10 px-2 py-3" aria-hidden />
+            </tr>
+          </thead>
+          <tbody>
+            {filas.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="px-4 py-8 text-center text-slate-500">
+                  No hay clientes dados de alta en el sistema.
+                </td>
+              </tr>
+            ) : (
+              filas.map((row) => {
+                const rowBg = registroUsoRowStyle("client", row.nombre, row.nombre);
+                const firstBar = registroUsoFirstCellStyle("client", row.nombre, row.nombre);
+                const selected = selectedKey === row.rowKey;
+                return (
+                  <tr
+                    key={row.rowKey}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => onSelectKey(row.rowKey)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onSelectKey(row.rowKey);
+                      }
+                    }}
+                    className={`cursor-pointer transition-shadow ${
+                      selected ? "ring-2 ring-inset ring-blue-500 z-[1] relative" : "hover:brightness-[0.98]"
+                    }`}
+                  >
+                    <td className="px-4 py-3 pl-3 text-left" style={{ ...rowBg, ...firstBar }}>
+                      <div className="font-medium text-slate-800">{row.nombre}</div>
+                      {row.kind === "huérfano" && (
+                        <div className="text-xs text-amber-700/90 mt-0.5">No figura en la tabla Clientes · userId: {row.userId}</div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums text-slate-700" style={rowBg}>
+                      {row.conexiones}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap" style={rowBg}>
+                      {row.ultimaConexion ? (
+                        fmtFechaHora(row.ultimaConexion)
+                      ) : (
+                        <span className="text-slate-400 italic">Sin datos</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-3 text-slate-400" style={rowBg}>
+                      <ChevronRight className="w-4 h-4" />
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+type KpiPeriodo = {
   total: number;
   most: { userId: string; label: string; count: number } | null;
   least: { userId: string; label: string; count: number } | null;
@@ -77,16 +169,12 @@ type KpiSemana = {
   rangoTexto: string;
 };
 
-function computeKpisSemana(events: LoginEventRow[]): KpiSemana {
+/** KPIs sobre el mismo filtro de días; solo cuentas de clientes (sin administradores). */
+function computeKpisPeriodo(events: LoginEventRow[], days: number): KpiPeriodo {
   const now = new Date();
-  const weekStart = startOfMondayLocal(now);
-  const weekEvents = events.filter((e) => {
-    const t = new Date(e.createdAt);
-    return t >= weekStart && t <= now;
-  });
-
+  const soloClientes = events.filter((e) => e.role !== "admin");
   const byUser = new Map<string, { count: number; label: string }>();
-  for (const e of weekEvents) {
+  for (const e of soloClientes) {
     const label = (e.clienteNombre || e.username || e.userId).trim();
     const cur = byUser.get(e.userId);
     if (!cur) byUser.set(e.userId, { count: 1, label });
@@ -94,8 +182,9 @@ function computeKpisSemana(events: LoginEventRow[]): KpiSemana {
   }
 
   const entries = [...byUser.entries()].map(([userId, v]) => ({ userId, label: v.label, count: v.count }));
+  const rangoBase = `Últimos ${days} días · ${now.toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}`;
+
   if (entries.length === 0) {
-    const rangoTexto = `${weekStart.toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" })} → ${now.toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" })}`;
     return {
       total: 0,
       most: null,
@@ -103,7 +192,7 @@ function computeKpisSemana(events: LoginEventRow[]): KpiSemana {
       soloUnPerfil: false,
       empate: false,
       perfilesDistintos: 0,
-      rangoTexto,
+      rangoTexto: rangoBase,
     };
   }
 
@@ -116,31 +205,29 @@ function computeKpisSemana(events: LoginEventRow[]): KpiSemana {
   const least = empate ? null : leastCandidates[0] ?? null;
   const soloUnPerfil = entries.length <= 1;
 
-  const rangoTexto = `${weekStart.toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" })} → ${now.toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" })}`;
-
   return {
-    total: weekEvents.length,
+    total: soloClientes.length,
     most,
     least,
     soloUnPerfil,
     empate,
     perfilesDistintos: entries.length,
-    rangoTexto,
+    rangoTexto: rangoBase,
   };
 }
 
-function ListaPerfilesBlock({
+function ListaAdminsBlock({
   title,
   emptyMessage,
   rows,
-  selectedUserId,
-  onSelect,
+  selectedKey,
+  onSelectKey,
 }: {
   title: string;
   emptyMessage: string;
   rows: ResumenUsuario[];
-  selectedUserId: string | null;
-  onSelect: (userId: string) => void;
+  selectedKey: string | null;
+  onSelectKey: (key: string) => void;
 }) {
   return (
     <section className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
@@ -164,9 +251,10 @@ function ListaPerfilesBlock({
               </tr>
             ) : (
               rows.map((r) => {
+                const rowKey = `u:${r.userId}`;
                 const rowBg = registroUsoRowStyle(r.role, r.clienteNombre ?? null, r.username);
                 const firstBar = registroUsoFirstCellStyle(r.role, r.clienteNombre ?? null, r.username);
-                const selected = selectedUserId === r.userId;
+                const selected = selectedKey === rowKey;
                 const label = perfilLabel(r);
                 const sub =
                   r.role === "client" && r.clienteNombre && r.username !== r.clienteNombre
@@ -177,11 +265,11 @@ function ListaPerfilesBlock({
                     key={r.userId}
                     role="button"
                     tabIndex={0}
-                    onClick={() => onSelect(r.userId)}
+                    onClick={() => onSelectKey(rowKey)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
-                        onSelect(r.userId);
+                        onSelectKey(rowKey);
                       }
                     }}
                     className={`cursor-pointer transition-shadow ${
@@ -224,7 +312,9 @@ export default function RegistroUsoPage() {
   const [resumen, setResumen] = useState<ResumenUsuario[]>([]);
   const [setupBusy, setSetupBusy] = useState(false);
   const [setupMsg, setSetupMsg] = useState("");
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  /** `c:clienteId` = cliente del catálogo; `u:userId` = admin u cliente huérfano */
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [clientesCatalogo, setClientesCatalogo] = useState<ClienteCatalogo[]>([]);
 
   const isSuperAdmin = SUPER_ADMINS.includes(user?.username || "");
   const missingLoginEventTable =
@@ -255,24 +345,36 @@ export default function RegistroUsoPage() {
     }
     setLoading(true);
     setError("");
-    fetch(`/api/registro-uso?days=${days}&limit=800`, {
-      headers: { Authorization: `Bearer ${t}` },
-    })
-      .then(async (r) => {
+    Promise.all([
+      fetch(`/api/registro-uso?days=${days}&limit=800`, {
+        headers: { Authorization: `Bearer ${t}` },
+      }).then(async (r) => ({ ok: r.ok, data: await r.json() })),
+      fetch("/api/clientes", { headers: { Authorization: `Bearer ${t}` } }).then(async (r) => {
         const data = await r.json();
-        if (!r.ok) {
-          setError(data.error || data.details || "Error al cargar");
+        return { ok: r.ok, data };
+      }),
+    ])
+      .then(([reg, cli]) => {
+        if (!reg.ok) {
+          setError(reg.data?.error || reg.data?.details || "Error al cargar");
           setEvents([]);
           setResumen([]);
+          setClientesCatalogo([]);
           return;
         }
-        setEvents(Array.isArray(data.events) ? data.events : []);
-        setResumen(Array.isArray(data.resumen) ? data.resumen : []);
+        setEvents(Array.isArray(reg.data.events) ? reg.data.events : []);
+        setResumen(Array.isArray(reg.data.resumen) ? reg.data.resumen : []);
+        if (cli.ok && Array.isArray(cli.data)) {
+          setClientesCatalogo(cli.data as ClienteCatalogo[]);
+        } else {
+          setClientesCatalogo([]);
+        }
       })
       .catch(() => {
         setError("Error de conexión");
         setEvents([]);
         setResumen([]);
+        setClientesCatalogo([]);
       })
       .finally(() => setLoading(false));
   }, [days]);
@@ -294,34 +396,107 @@ export default function RegistroUsoPage() {
     load();
   }, [mounted, token, isSuperAdmin, load]);
 
-  const clientesLista = useMemo(
-    () => resumen.filter((r) => r.role === "client").sort(sortByUltimaDesc),
-    [resumen]
-  );
+  const filasClientes = useMemo((): FilaClienteLista[] => {
+    const catalogNorms = new Set(clientesCatalogo.map((c) => normNombre(c.nombre)));
+    const filas: FilaClienteLista[] = clientesCatalogo.map((c) => {
+      const evs = events.filter((e) => eventMatchesClienteNombre(e, c.nombre));
+      let ultima: string | null = null;
+      if (evs.length > 0) {
+        ultima = evs.reduce(
+          (max, e) => (new Date(e.createdAt) > new Date(max) ? e.createdAt : max),
+          evs[0]!.createdAt
+        );
+      }
+      return {
+        kind: "catalogo",
+        rowKey: `c:${c.id}`,
+        clienteId: c.id,
+        nombre: c.nombre,
+        conexiones: evs.length,
+        ultimaConexion: ultima,
+      };
+    });
+
+    const huérfanosVistos = new Set<string>();
+    for (const r of resumen) {
+      if (r.role !== "client") continue;
+      const lab = normNombre(perfilLabel(r));
+      if (!lab || catalogNorms.has(lab)) continue;
+      if (huérfanosVistos.has(r.userId)) continue;
+      huérfanosVistos.add(r.userId);
+      filas.push({
+        kind: "huérfano",
+        rowKey: `u:${r.userId}`,
+        userId: r.userId,
+        nombre: perfilLabel(r),
+        conexiones: r.conexiones,
+        ultimaConexion: r.ultimaConexion,
+      });
+    }
+
+    filas.sort((a, b) => a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" }));
+    return filas;
+  }, [clientesCatalogo, events, resumen]);
+
   const adminsLista = useMemo(
     () => resumen.filter((r) => r.role === "admin").sort(sortByUltimaDesc),
     [resumen]
   );
 
   const eventosSeleccionados = useMemo(() => {
-    if (!selectedUserId) return [];
-    return events
-      .filter((e) => e.userId === selectedUserId)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [events, selectedUserId]);
+    if (!selectedKey) return [];
+    if (selectedKey.startsWith("c:")) {
+      const id = selectedKey.slice(2);
+      const c = clientesCatalogo.find((x) => x.id === id);
+      if (!c) return [];
+      return events
+        .filter((e) => eventMatchesClienteNombre(e, c.nombre))
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
+    if (selectedKey.startsWith("u:")) {
+      const userId = selectedKey.slice(2);
+      return events
+        .filter((e) => e.userId === userId)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
+    return [];
+  }, [events, selectedKey, clientesCatalogo]);
 
-  const kpisSemana = useMemo(() => computeKpisSemana(events), [events]);
+  const kpisPeriodo = useMemo(() => computeKpisPeriodo(events, days), [events, days]);
 
-  const resumenSeleccionado = useMemo(
-    () => resumen.find((r) => r.userId === selectedUserId) ?? null,
-    [resumen, selectedUserId]
-  );
+  const detalleCabecera = useMemo(() => {
+    if (!selectedKey) return null;
+    if (selectedKey.startsWith("c:")) {
+      const id = selectedKey.slice(2);
+      const c = clientesCatalogo.find((x) => x.id === id);
+      return {
+        titulo: c?.nombre ?? "Cliente",
+        subtitulo: `Cliente · ${eventosSeleccionados.length} en este período`,
+      };
+    }
+    if (selectedKey.startsWith("u:")) {
+      const uid = selectedKey.slice(2);
+      const r = resumen.find((x) => x.userId === uid);
+      return {
+        titulo: r ? perfilLabel(r) : uid,
+        subtitulo: `${r?.role === "admin" ? "Admin" : "Cliente"} · ${eventosSeleccionados.length} en este período`,
+      };
+    }
+    return null;
+  }, [selectedKey, clientesCatalogo, resumen, eventosSeleccionados.length]);
 
   useEffect(() => {
-    if (selectedUserId && !resumen.some((r) => r.userId === selectedUserId)) {
-      setSelectedUserId(null);
+    if (!selectedKey) return;
+    if (selectedKey.startsWith("c:")) {
+      const id = selectedKey.slice(2);
+      if (!clientesCatalogo.some((c) => c.id === id)) setSelectedKey(null);
+      return;
     }
-  }, [resumen, selectedUserId]);
+    if (selectedKey.startsWith("u:")) {
+      const uid = selectedKey.slice(2);
+      if (!resumen.some((r) => r.userId === uid)) setSelectedKey(null);
+    }
+  }, [selectedKey, clientesCatalogo, resumen]);
 
   async function createTableFromApp() {
     const t = localStorage.getItem("token");
@@ -378,7 +553,7 @@ export default function RegistroUsoPage() {
       <div>
         <h1 className="text-2xl font-semibold text-slate-800">Registro de uso</h1>
         <p className="text-slate-600 text-sm mt-1">
-          Lista de clientes y administradores con su última conexión en el período. Pulsa una fila para ver <strong>todas</strong> las conexiones de ese perfil.
+          <strong>Todos los clientes</strong> del sistema (con <strong>0</strong> o sin última conexión si no han entrado en el período). Los administradores solo aparecen si tienen actividad. Pulsa una fila para el detalle.
         </p>
       </div>
 
@@ -435,14 +610,14 @@ export default function RegistroUsoPage() {
             <div className="rounded-xl border border-slate-200/90 bg-gradient-to-br from-sky-50/80 via-white to-white p-5 shadow-sm">
               <div className="flex items-center gap-2 text-sky-700/90">
                 <Activity className="w-4 h-4 shrink-0" />
-                <p className="text-xs font-semibold uppercase tracking-wide">Esta semana</p>
+                <p className="text-xs font-semibold uppercase tracking-wide">En el período</p>
               </div>
               <p className="text-3xl font-semibold text-slate-900 mt-3 tabular-nums leading-none">
-                {kpisSemana.total}
+                {kpisPeriodo.total}
               </p>
-              <p className="text-sm text-slate-600 mt-1">conexiones registradas</p>
-              <p className="text-xs text-slate-500 mt-3 border-t border-slate-100 pt-2">{kpisSemana.rangoTexto}</p>
-              <p className="text-[11px] text-slate-400 mt-1">Lunes 00:00 → ahora (tu hora local)</p>
+              <p className="text-sm text-slate-600 mt-1">conexiones de clientes (sin admins)</p>
+              <p className="text-xs text-slate-500 mt-3 border-t border-slate-100 pt-2">{kpisPeriodo.rangoTexto}</p>
+              <p className="text-[11px] text-slate-400 mt-1">Mismo rango que el filtro «Últimos {days} días»</p>
             </div>
 
             <div className="rounded-xl border border-slate-200/90 bg-gradient-to-br from-emerald-50/70 via-white to-white p-5 shadow-sm">
@@ -450,17 +625,17 @@ export default function RegistroUsoPage() {
                 <TrendingUp className="w-4 h-4 shrink-0" />
                 <p className="text-xs font-semibold uppercase tracking-wide">Más consultas</p>
               </div>
-              {kpisSemana.most ? (
+              {kpisPeriodo.most ? (
                 <>
                   <p className="text-lg font-semibold text-slate-900 mt-3 leading-snug line-clamp-2">
-                    {kpisSemana.most.label}
+                    {kpisPeriodo.most.label}
                   </p>
                   <p className="text-sm text-emerald-800/90 mt-1 font-medium tabular-nums">
-                    {kpisSemana.most.count} {kpisSemana.most.count === 1 ? "conexión" : "conexiones"}
+                    {kpisPeriodo.most.count} {kpisPeriodo.most.count === 1 ? "conexión" : "conexiones"}
                   </p>
                 </>
               ) : (
-                <p className="text-slate-500 mt-3 text-sm">Sin datos esta semana</p>
+                <p className="text-slate-500 mt-3 text-sm">Sin datos en este período</p>
               )}
             </div>
 
@@ -469,49 +644,48 @@ export default function RegistroUsoPage() {
                 <TrendingDown className="w-4 h-4 shrink-0" />
                 <p className="text-xs font-semibold uppercase tracking-wide">Menos consultas</p>
               </div>
-              {kpisSemana.empate && kpisSemana.most ? (
+              {kpisPeriodo.empate && kpisPeriodo.most ? (
                 <>
                   <p className="text-sm text-slate-700 mt-3 leading-snug">
-                    Todos los perfiles con la misma actividad ({kpisSemana.most.count}{" "}
-                    {kpisSemana.most.count === 1 ? "conexión" : "conexiones"} c/u.)
+                    Todos los perfiles con la misma actividad ({kpisPeriodo.most.count}{" "}
+                    {kpisPeriodo.most.count === 1 ? "conexión" : "conexiones"} c/u.)
                   </p>
                   <p className="text-xs text-slate-500 mt-2">
-                    {kpisSemana.perfilesDistintos} perfiles distintos
+                    {kpisPeriodo.perfilesDistintos} perfiles distintos
                   </p>
                 </>
-              ) : kpisSemana.least && kpisSemana.most ? (
+              ) : kpisPeriodo.least && kpisPeriodo.most ? (
                 <>
                   <p className="text-lg font-semibold text-slate-900 mt-3 leading-snug line-clamp-2">
-                    {kpisSemana.least.label}
+                    {kpisPeriodo.least.label}
                   </p>
                   <p className="text-sm text-amber-900/80 mt-1 font-medium tabular-nums">
-                    {kpisSemana.least.count} {kpisSemana.least.count === 1 ? "conexión" : "conexiones"}
+                    {kpisPeriodo.least.count} {kpisPeriodo.least.count === 1 ? "conexión" : "conexiones"}
                   </p>
-                  {kpisSemana.soloUnPerfil && (
-                    <p className="text-xs text-slate-500 mt-2">Único perfil con actividad esta semana</p>
+                  {kpisPeriodo.soloUnPerfil && (
+                    <p className="text-xs text-slate-500 mt-2">Único perfil con actividad en el período</p>
                   )}
                 </>
               ) : (
-                <p className="text-slate-500 mt-3 text-sm">Sin datos esta semana</p>
+                <p className="text-slate-500 mt-3 text-sm">Sin datos en este período</p>
               )}
             </div>
           </div>
 
           <div className="grid gap-8 lg:grid-cols-2 lg:items-start">
             <div className="space-y-6">
-              <ListaPerfilesBlock
-                title={`Clientes (${clientesLista.length})`}
-                emptyMessage="Ningún cliente con actividad en este período."
-                rows={clientesLista}
-                selectedUserId={selectedUserId}
-                onSelect={setSelectedUserId}
+              <ListaClientesCompleta
+                title={`Clientes (${filasClientes.length})`}
+                filas={filasClientes}
+                selectedKey={selectedKey}
+                onSelectKey={setSelectedKey}
               />
-              <ListaPerfilesBlock
+              <ListaAdminsBlock
                 title={`Administradores (${adminsLista.length})`}
                 emptyMessage="Ningún administrador con actividad en este período."
                 rows={adminsLista}
-                selectedUserId={selectedUserId}
-                onSelect={setSelectedUserId}
+                selectedKey={selectedKey}
+                onSelectKey={setSelectedKey}
               />
             </div>
 
@@ -519,13 +693,11 @@ export default function RegistroUsoPage() {
               <div className="px-4 py-3 border-b border-slate-100 flex items-start justify-between gap-3">
                 <div>
                   <h2 className="font-medium text-slate-800">Conexiones del perfil</h2>
-                  {resumenSeleccionado ? (
+                  {detalleCabecera ? (
                     <p className="text-sm text-slate-600 mt-0.5">
-                      <span className="font-medium text-slate-800">{perfilLabel(resumenSeleccionado)}</span>
+                      <span className="font-medium text-slate-800">{detalleCabecera.titulo}</span>
                       <span className="text-slate-400 mx-1">·</span>
-                      {resumenSeleccionado.role === "admin" ? "Admin" : "Cliente"}
-                      <span className="text-slate-400 mx-1">·</span>
-                      {eventosSeleccionados.length} en este período
+                      {detalleCabecera.subtitulo}
                     </p>
                   ) : (
                     <p className="text-sm text-slate-500 mt-0.5">
@@ -533,10 +705,10 @@ export default function RegistroUsoPage() {
                     </p>
                   )}
                 </div>
-                {selectedUserId && (
+                {selectedKey && (
                   <button
                     type="button"
-                    onClick={() => setSelectedUserId(null)}
+                    onClick={() => setSelectedKey(null)}
                     className="shrink-0 text-sm text-slate-600 hover:text-slate-900 underline"
                   >
                     Cerrar
@@ -544,12 +716,14 @@ export default function RegistroUsoPage() {
                 )}
               </div>
               <div className="overflow-x-auto max-h-[min(70vh,560px)] overflow-y-auto">
-                {!selectedUserId ? (
+                {!selectedKey ? (
                   <p className="px-4 py-12 text-center text-slate-500 text-sm">
                     Haz clic en una fila para cargar aquí todas las fechas y navegadores registrados.
                   </p>
                 ) : eventosSeleccionados.length === 0 ? (
-                  <p className="px-4 py-12 text-center text-slate-500 text-sm">Sin eventos para este perfil en el período.</p>
+                  <p className="px-4 py-12 text-center text-slate-500 text-sm">
+                    Sin conexiones registradas para este perfil en el período seleccionado.
+                  </p>
                 ) : (
                   <table className="min-w-full text-sm">
                     <thead className="bg-slate-50 sticky top-0 z-10">

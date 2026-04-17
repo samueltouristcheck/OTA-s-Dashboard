@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyToken } from "@/lib/auth";
+import { verifyToken, type TokenPayload } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/super-admin";
 import { supabase } from "@/lib/supabase";
 
-/** Lista clientes de Supabase (solo admin) */
+function canAccessClientesApi(payload: TokenPayload) {
+  return payload.role === "admin" || isSuperAdmin(payload);
+}
+
+/** Lista clientes de Supabase (admin o super admin, mismo criterio que registro de uso) */
 export async function GET(req: Request) {
   try {
     const authHeader = req.headers.get("authorization");
     const token = authHeader?.replace("Bearer ", "");
     const payload = token ? verifyToken(token) : null;
-    if (!payload || payload.role !== "admin") {
+    if (!payload || !canAccessClientesApi(payload)) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
     const { data, error } = await supabase.from("Cliente").select("id, nombre").order("nombre", { ascending: true });
@@ -20,13 +25,13 @@ export async function GET(req: Request) {
   }
 }
 
-/** Crea o obtiene cliente por nombre (solo admin) */
+/** Crea o obtiene cliente por nombre (admin o super admin) */
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get("authorization");
     const token = authHeader?.replace("Bearer ", "");
     const payload = token ? verifyToken(token) : null;
-    if (!payload || payload.role !== "admin") {
+    if (!payload || !canAccessClientesApi(payload)) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
     const { nombre } = await req.json();
