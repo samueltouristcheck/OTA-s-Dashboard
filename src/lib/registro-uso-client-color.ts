@@ -37,13 +37,15 @@ export function registroUsoRowStyle(
   const hue = clientHue(role, clienteNombre, username);
   if (hue == null) {
     return {
-      backgroundColor: role === "admin" ? "hsl(215 18% 95%)" : "#ffffff",
+      backgroundColor: role === "admin" ? "hsl(215 10% 97%)" : "#ffffff",
       borderTop: "1px solid rgb(241 245 249)",
     };
   }
-  const sat = 52 + (hashKey(clienteNombre || username || "") % 14);
+  const key = clienteNombre || username || "";
+  const sat = 16 + (hashKey(key) % 10);
+  const light = 96.8 + (hashKey(key + "L") % 6) * 0.05;
   return {
-    backgroundColor: `hsl(${hue} ${sat}% 84%)`,
+    backgroundColor: `hsl(${hue} ${sat}% ${light}%)`,
     borderTop: "1px solid rgb(241 245 249)",
   };
 }
@@ -55,11 +57,13 @@ export function registroUsoFirstCellStyle(
 ): CSSProperties {
   const hue = clientHue(role, clienteNombre, username);
   if (role === "admin") {
-    return { borderLeft: "4px solid hsl(215 16% 68%)" };
+    return { borderLeft: "3px solid hsl(215 14% 86%)" };
   }
   if (hue == null) {
-    return { borderLeft: "4px solid transparent" };
+    return { borderLeft: "3px solid transparent" };
   }
-  const satBar = 58 + (hashKey((clienteNombre || username) + "bar") % 14);
-  return { borderLeft: `4px solid hsl(${hue} ${satBar}% 44%)` };
+  const barKey = (clienteNombre || username) + "bar";
+  const satBar = 22 + (hashKey(barKey) % 10);
+  const lightBar = 88 + (hashKey(barKey + "b") % 5);
+  return { borderLeft: `3px solid hsl(${hue} ${satBar}% ${lightBar}%)` };
 }
