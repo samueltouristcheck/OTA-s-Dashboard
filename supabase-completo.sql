@@ -40,19 +40,34 @@ CREATE INDEX IF NOT EXISTS "User_clienteId_idx" ON "User"("clienteId");
 CREATE INDEX IF NOT EXISTS "Venta_clienteId_idx" ON "Venta"("clienteId");
 CREATE INDEX IF NOT EXISTS "Venta_ano_idx" ON "Venta"("ano");
 
+CREATE TABLE IF NOT EXISTS "LoginEvent" (
+  "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  "userId" TEXT NOT NULL,
+  "username" TEXT NOT NULL,
+  "role" TEXT NOT NULL,
+  "clienteNombre" TEXT,
+  "userAgent" TEXT,
+  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS "LoginEvent_userId_idx" ON "LoginEvent"("userId");
+CREATE INDEX IF NOT EXISTS "LoginEvent_createdAt_idx" ON "LoginEvent"("createdAt" DESC);
+
 -- 2. Políticas RLS (permite acceso desde la app con anon key)
 ALTER TABLE "User" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Cliente" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Venta" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "LoginEvent" ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow all User" ON "User";
 DROP POLICY IF EXISTS "Allow all Cliente" ON "Cliente";
 DROP POLICY IF EXISTS "Allow all Venta" ON "Venta";
+DROP POLICY IF EXISTS "Allow all LoginEvent" ON "LoginEvent";
 CREATE POLICY "Allow all User" ON "User" FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all Cliente" ON "Cliente" FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all Venta" ON "Venta" FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all LoginEvent" ON "LoginEvent" FOR ALL USING (true) WITH CHECK (true);
 
 -- 3. Limpiar datos previos (si existen)
-TRUNCATE "Venta", "User", "Cliente" CASCADE;
+TRUNCATE "LoginEvent", "Venta", "User", "Cliente" CASCADE;
 
 -- 4. Clientes
 INSERT INTO "Cliente" ("id", "nombre") VALUES 

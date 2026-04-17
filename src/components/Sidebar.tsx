@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Settings, Users, User, UserCog, CalendarPlus } from "lucide-react";
+import { LayoutDashboard, Settings, Users, User, UserCog, CalendarPlus, Activity } from "lucide-react";
 
 const SUPER_ADMINS = ["Alexandra", "Samuel"];
 
@@ -13,6 +13,7 @@ const nav = [
   { href: "/dashboard/datos-mensuales", label: "Datos mensuales", icon: CalendarPlus, adminOnly: true },
   { href: "/dashboard/clientes", label: "Clientes", icon: Users, adminOnly: true },
   { href: "/dashboard/usuarios", label: "Usuarios", icon: UserCog, superAdminOnly: true },
+  { href: "/dashboard/registro-uso", label: "Registro de uso", icon: Activity, superAdminOnly: true },
 ];
 
 export function Sidebar() {

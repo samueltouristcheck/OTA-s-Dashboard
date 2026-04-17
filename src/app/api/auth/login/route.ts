@@ -185,6 +185,19 @@ export async function POST(req: NextRequest) {
     }
 
     const loginId = user.username || user.email || user.id;
+    const displayUsername = String(user.username || user.email || loginId).trim();
+
+    const { error: loginEventErr } = await supabase.from("LoginEvent").insert({
+      userId: user.id,
+      username: displayUsername,
+      role: user.role,
+      clienteNombre: clienteNombre ?? null,
+      userAgent: req.headers.get("user-agent")?.slice(0, 500) || null,
+    });
+    if (loginEventErr) {
+      console.error("[login] LoginEvent:", loginEventErr);
+    }
+
     const token = signToken({
       userId: user.id,
       email: loginId,
