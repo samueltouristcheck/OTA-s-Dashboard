@@ -12,6 +12,15 @@ const config: Config = {
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
       },
+      keyframes: {
+        "bounce-slow": {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-6px)" },
+        },
+      },
+      animation: {
+        "bounce-slow": "bounce-slow 2.5s ease-in-out infinite",
+      },
     },
   },
   plugins: [],

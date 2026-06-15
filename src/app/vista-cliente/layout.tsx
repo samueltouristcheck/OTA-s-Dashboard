@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { ChatbotWidget } from "@/components/ChatbotWidget";
 
 export default function VistaClienteLayout({
   children,
@@ -18,5 +19,10 @@ export default function VistaClienteLayout({
     }
   }, [path, router]);
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      <ChatbotWidget />
+    </>
+  );
 }

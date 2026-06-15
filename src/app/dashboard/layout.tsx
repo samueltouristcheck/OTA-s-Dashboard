@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { LogOut } from "lucide-react";
 import { getClientTheme } from "@/lib/cliente-themes";
+import { ChatbotWidget } from "@/components/ChatbotWidget";
 
 export default function DashboardLayout({
   children,
@@ -68,6 +69,7 @@ export default function DashboardLayout({
         </div>
         {children}
       </main>
+      <ChatbotWidget />
     </div>
   );
 }
