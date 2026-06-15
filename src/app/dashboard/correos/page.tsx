@@ -234,8 +234,8 @@ export default function CorreosPage() {
                 selected={destinatarios}
                 onChange={setDestinatarios}
                 placeholder="Elegir destinatarios…"
-                label={(email) => nombrePorEmail[email] || email}
-                className="min-w-[220px]"
+                label={(email) => (nombrePorEmail[email] ? `${nombrePorEmail[email]} — ${email}` : email)}
+                className="min-w-[260px]"
               />
               <span className="text-xs text-slate-500">
                 {destinatarios.length} de {opcionesEmail.length} seleccionados
