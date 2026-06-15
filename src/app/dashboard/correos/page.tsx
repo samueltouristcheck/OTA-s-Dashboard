@@ -2,13 +2,43 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Mail, Send, Clock, Trash2, Loader2, CheckCircle2, AlertCircle, Save } from "lucide-react";
+import {
+  Mail,
+  Send,
+  Clock,
+  Trash2,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  Save,
+  ChevronDown,
+  Users,
+  Calendar,
+  User,
+  Globe,
+} from "lucide-react";
 import { IDIOMAS, PLANTILLAS, type Idioma } from "@/lib/email-plantillas";
 import { MultiSelect } from "@/components/MultiSelect";
 
 const SUPER_ADMINS = ["Alexandra", "Samuel"];
 
+const IDIOMA_NOMBRE: Record<string, string> = { es: "Castellano", ca: "Català", en: "English" };
+
+function fmtFecha(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleString("es-ES", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 type Cliente = { id: string; nombre: string; email: string | null };
+type EnvioDetalle = { email: string; ok: boolean; error?: string };
 type Campaign = {
   id: string;
   asunto: string;
@@ -18,7 +48,9 @@ type Campaign = {
   estado: string;
   createdAt: string;
   sentAt: string | null;
-  resultado: { total?: number; enviados?: number } | null;
+  creadoPor: string | null;
+  destinatarios: string[] | null;
+  resultado: { total?: number; enviados?: number; detalle?: EnvioDetalle[] } | null;
 };
 
 export default function CorreosPage() {
@@ -40,6 +72,7 @@ export default function CorreosPage() {
   const [aviso, setAviso] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [expandida, setExpandida] = useState<string | null>(null);
 
   // Guard: solo super admin.
   useEffect(() => {
@@ -342,46 +375,129 @@ export default function CorreosPage() {
         <h2 className="mb-3 text-lg font-semibold text-slate-800">Envíos</h2>
         <div className="space-y-2">
           {campaigns.length === 0 && <p className="text-sm text-slate-500">Todavía no hay envíos.</p>}
-          {campaigns.map((c) => (
-            <div
-              key={c.id}
-              className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3"
-            >
-              <div>
-                <p className="text-sm font-medium text-slate-700">{c.asunto}</p>
-                <p className="text-xs text-slate-500">
-                  {c.estado === "pendiente"
-                    ? `Programado para ${c.fechaEnvio}`
-                    : c.estado === "enviado"
-                    ? `Enviado · ${c.resultado?.enviados ?? "?"}/${c.resultado?.total ?? "?"} clientes`
-                    : "Error en el envío"}{" "}
-                  · {c.idioma.toUpperCase()}
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <span
-                  className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                    c.estado === "pendiente"
-                      ? "bg-amber-50 text-amber-700"
-                      : c.estado === "enviado"
-                      ? "bg-green-50 text-green-700"
-                      : "bg-red-50 text-red-700"
-                  }`}
+          {campaigns.map((c) => {
+            const abierta = expandida === c.id;
+            const enviados = c.resultado?.enviados ?? 0;
+            const total = c.resultado?.total ?? c.destinatarios?.length ?? 0;
+            const fallidos = (c.resultado?.detalle || []).filter((d) => !d.ok);
+            const numDest = c.destinatarios?.length ?? null;
+            return (
+              <div key={c.id} className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+                {/* Cabecera (clic para desplegar) */}
+                <div
+                  onClick={() => setExpandida(abierta ? null : c.id)}
+                  className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 hover:bg-slate-50"
                 >
-                  {c.estado}
-                </span>
-                {c.estado === "pendiente" && (
-                  <button
-                    onClick={() => borrarCampaign(c.id)}
-                    className="text-slate-400 hover:text-red-600"
-                    aria-label="Borrar"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-slate-700">{c.asunto}</p>
+                    <p className="text-xs text-slate-500">
+                      {c.estado === "pendiente"
+                        ? `Programado para ${c.fechaEnvio}`
+                        : c.estado === "enviado"
+                        ? `Enviado el ${fmtFecha(c.sentAt)} · ${enviados}/${total} entregados`
+                        : "Error en el envío"}{" "}
+                      · {IDIOMA_NOMBRE[c.idioma] || c.idioma.toUpperCase()}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                        c.estado === "pendiente"
+                          ? "bg-amber-50 text-amber-700"
+                          : c.estado === "enviado"
+                          ? "bg-green-50 text-green-700"
+                          : "bg-red-50 text-red-700"
+                      }`}
+                    >
+                      {c.estado}
+                    </span>
+                    {c.estado === "pendiente" && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          borrarCampaign(c.id);
+                        }}
+                        className="text-slate-400 hover:text-red-600"
+                        aria-label="Borrar"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                    <ChevronDown
+                      className={`h-4 w-4 text-slate-400 transition-transform ${abierta ? "rotate-180" : ""}`}
+                    />
+                  </div>
+                </div>
+
+                {/* Detalle desplegable */}
+                {abierta && (
+                  <div className="space-y-3 border-t border-slate-100 bg-slate-50 px-4 py-3">
+                    <div className="grid grid-cols-1 gap-1.5 text-xs text-slate-600 sm:grid-cols-2">
+                      <div className="flex items-center gap-1.5">
+                        <Calendar className="h-3.5 w-3.5 text-slate-400" /> Creado: {fmtFecha(c.createdAt)}
+                      </div>
+                      {c.estado === "pendiente" ? (
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="h-3.5 w-3.5 text-slate-400" /> Programado: {c.fechaEnvio}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <Send className="h-3.5 w-3.5 text-slate-400" /> Enviado: {fmtFecha(c.sentAt)}
+                        </div>
+                      )}
+                      <div className="flex items-center gap-1.5">
+                        <Globe className="h-3.5 w-3.5 text-slate-400" /> Idioma:{" "}
+                        {IDIOMA_NOMBRE[c.idioma] || c.idioma}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Users className="h-3.5 w-3.5 text-slate-400" /> Destinatarios:{" "}
+                        {numDest != null ? numDest : "todos los clientes con email"}
+                      </div>
+                      {c.creadoPor && (
+                        <div className="flex items-center gap-1.5">
+                          <User className="h-3.5 w-3.5 text-slate-400" /> Por: {c.creadoPor}
+                        </div>
+                      )}
+                    </div>
+
+                    {c.estado !== "pendiente" && (
+                      <div className="text-xs">
+                        <span className="font-medium text-green-700">✓ {enviados} entregados</span>
+                        {fallidos.length > 0 && (
+                          <span className="ml-3 font-medium text-red-700">✗ {fallidos.length} con error</span>
+                        )}
+                        {fallidos.length > 0 && (
+                          <ul className="mt-1 list-disc pl-5 text-red-600">
+                            {fallidos.slice(0, 6).map((f, i) => (
+                              <li key={i}>
+                                {f.email}
+                                {f.error ? ` — ${f.error}` : ""}
+                              </li>
+                            ))}
+                            {fallidos.length > 6 && <li>… y {fallidos.length - 6} más</li>}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+
+                    {c.destinatarios && c.destinatarios.length > 0 && (
+                      <div className="text-xs text-slate-600">
+                        <p className="mb-1 font-medium">Enviado a:</p>
+                        <p className="break-words text-slate-500">{c.destinatarios.join(", ")}</p>
+                      </div>
+                    )}
+
+                    <div>
+                      <p className="mb-1 text-xs font-medium text-slate-600">Mensaje</p>
+                      <p className="whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-700">
+                        {c.cuerpo}
+                      </p>
+                    </div>
+                  </div>
                 )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
