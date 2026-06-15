@@ -5,7 +5,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "OTA Sales Dashboard",
+  title: "Touristcheck · Dashboard",
   description: "Dashboard de ventas de entradas",
 };
 
