@@ -16,6 +16,7 @@ import {
   Calendar,
   User,
   Globe,
+  Languages,
 } from "lucide-react";
 import { IDIOMAS, PLANTILLAS, type Idioma } from "@/lib/email-plantillas";
 import { MultiSelect } from "@/components/MultiSelect";
@@ -66,6 +67,8 @@ export default function CorreosPage() {
   const [idioma, setIdioma] = useState<Idioma>("es");
   const [asunto, setAsunto] = useState(PLANTILLAS.es.asunto);
   const [cuerpo, setCuerpo] = useState(PLANTILLAS.es.cuerpo);
+  // Plantillas (asunto+cuerpo) por idioma, guardadas en BD.
+  const [plantillas, setPlantillas] = useState<Record<Idioma, { asunto: string; cuerpo: string }>>(PLANTILLAS);
   const [fecha, setFecha] = useState("");
   const [emailPrueba, setEmailPrueba] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -114,18 +117,80 @@ export default function CorreosPage() {
       .catch(console.error);
   }
 
+  function cargarPlantillas() {
+    fetch("/api/plantillas", { headers })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && d.es) {
+          setPlantillas(d);
+          setAsunto(d[idioma]?.asunto ?? d.es.asunto);
+          setCuerpo(d[idioma]?.cuerpo ?? d.es.cuerpo);
+        }
+      })
+      .catch(console.error);
+  }
+
   useEffect(() => {
     if (authorized && token) {
       cargarClientes();
       cargarCampaigns();
+      cargarPlantillas();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authorized, token]);
 
   function cambiarIdioma(value: Idioma) {
+    // Guarda la edición del idioma actual antes de cambiar.
+    setPlantillas((p) => ({ ...p, [idioma]: { asunto, cuerpo } }));
     setIdioma(value);
-    setAsunto(PLANTILLAS[value].asunto);
-    setCuerpo(PLANTILLAS[value].cuerpo);
+    setAsunto(plantillas[value].asunto);
+    setCuerpo(plantillas[value].cuerpo);
+  }
+
+  async function guardarPlantillas() {
+    setBusy("guardar");
+    setAviso(null);
+    const actuales = { ...plantillas, [idioma]: { asunto, cuerpo } };
+    setPlantillas(actuales);
+    try {
+      const res = await fetch("/api/plantillas", {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({ plantillas: actuales }),
+      });
+      const d = await res.json();
+      setAviso(res.ok ? { tipo: "ok", texto: "Plantilla guardada" } : { tipo: "error", texto: d.error || "Error" });
+    } catch {
+      setAviso({ tipo: "error", texto: "Error de conexión" });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function generar3Idiomas() {
+    setBusy("traducir");
+    setAviso(null);
+    try {
+      const res = await fetch("/api/plantillas", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ asunto, cuerpo, idioma }),
+      });
+      const d = await res.json();
+      if (!res.ok) {
+        setAviso({ tipo: "error", texto: d.error || "No se pudo traducir" });
+        return;
+      }
+      const next = { ...plantillas, ...d };
+      setPlantillas(next);
+      setAsunto(next[idioma].asunto);
+      setCuerpo(next[idioma].cuerpo);
+      setAviso({ tipo: "ok", texto: "Generado en los 3 idiomas. Revisa y pulsa Guardar." });
+    } catch {
+      setAviso({ tipo: "error", texto: "Error de conexión" });
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function guardarEmail(id: string) {
@@ -265,6 +330,29 @@ export default function CorreosPage() {
             rows={7}
             className="w-full rounded-md border border-slate-200 p-3 text-sm leading-relaxed outline-none focus:border-slate-400"
           />
+
+          {/* Guardar plantilla / generar en 3 idiomas */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={guardarPlantillas}
+              disabled={!!busy}
+              className="flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-40"
+            >
+              {busy === "guardar" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Guardar plantilla
+            </button>
+            <button
+              onClick={generar3Idiomas}
+              disabled={!!busy}
+              className="flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-40"
+            >
+              {busy === "traducir" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Languages className="h-4 w-4" />}
+              Generar en los 3 idiomas
+            </button>
+            <span className="text-xs text-slate-400">
+              Guarda para que tus cambios queden fijados como plantilla por defecto.
+            </span>
+          </div>
 
           {aviso && (
             <div
