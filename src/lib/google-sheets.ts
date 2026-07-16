@@ -128,6 +128,35 @@ function expandGironaArtProductRows(
   return outs;
 }
 
+/** Vinseum: dos productes — "Vino catalán" i "3 vinos". */
+function isVinseumCliente(clienteNorm: string) {
+  return clienteNorm.includes("vinseum");
+}
+
+/** A la fulla els productes del Vinseum poden venir en majúscules o en català; els unifiquem. */
+const VINSEUM_PRODUCT_LABELS: Record<string, string> = {
+  "vino catalan": "Vino catalán",
+  "vi catala": "Vino catalán",
+  "3 vinos": "3 vinos",
+  "3 vins": "3 vinos",
+  "tres vinos": "3 vinos",
+  "tres vins": "3 vinos",
+};
+
+function canonicalVinseumProducto(raw: string): string {
+  return VINSEUM_PRODUCT_LABELS[normHeaderCell(raw)] ?? raw.trim();
+}
+
+/** Columna "Producto (Vinseum)" si la fulla en té una de dedicada. */
+function readProductoVinseumColumn(row: string[], headers: string[]): string {
+  const idx = headers.findIndex((h) => {
+    const n = normHeaderCell(h);
+    return n.includes("vinseum") && n.includes("producto");
+  });
+  if (idx < 0) return "";
+  return String(row[idx] ?? "").trim();
+}
+
 function findColumnIndex(headers: string[]): Record<string, number> {
   const result: Record<string, number> = {};
   for (const [key, colName] of Object.entries(COLUMN_MAP)) {
@@ -278,6 +307,19 @@ function parseRow(row: string[], indices: Record<string, number>, headers: strin
         ...baseCommon,
         numeroEntradas: numMain,
         producto: producto || "General",
+      },
+    ];
+  }
+
+  // Vinseum: columna "Producto (Vinseum)" si existeix; si no, la columna "Producto" general.
+  if (isVinseumCliente(clienteNorm)) {
+    if (isNaN(numMain)) return [];
+    const raw = readProductoVinseumColumn(row, headers) || get("producto");
+    return [
+      {
+        ...baseCommon,
+        numeroEntradas: numMain,
+        producto: raw ? canonicalVinseumProducto(raw) : "General",
       },
     ];
   }

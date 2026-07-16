@@ -23,6 +23,9 @@ const EXCLUITS = new Set(
 const ALIAS_CANONIC: Record<string, string> = {
   "museu tapies": "Fundació Tàpies",
   "fundacio tapies": "Fundació Tàpies",
+  // A la fulla de vendes el Museu Egipci s'apunta amb les sigles EGI.
+  egi: "Museu Egipci",
+  "museu egipci": "Museu Egipci",
 };
 
 export function normalitzaClientSheet(cliente: string): string | null {
