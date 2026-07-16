@@ -26,6 +26,8 @@ const ALIAS_CANONIC: Record<string, string> = {
   // A la fulla de vendes el Museu Egipci s'apunta amb les sigles EGI.
   egi: "Museu Egipci",
   "museu egipci": "Museu Egipci",
+  // A la fulla conviuen "VINSEUM" i "Vinseum": són el mateix client.
+  vinseum: "Vinseum",
 };
 
 export function normalitzaClientSheet(cliente: string): string | null {
