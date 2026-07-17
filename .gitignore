@@ -11,3 +11,4 @@ total-earth-*.json
 out
 dist
 tsconfig.tsbuildinfo
+backups

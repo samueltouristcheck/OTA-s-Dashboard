@@ -53,7 +53,7 @@ async function main() {
                 ota,
                 tipoEntrada: tipo,
                 mes,
-                anio,
+                ano: anio,
                 numeroEntradas,
                 producto,
               },

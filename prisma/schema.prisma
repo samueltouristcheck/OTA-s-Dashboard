@@ -1,3 +1,6 @@
+// El código accede a la base de datos con supabase-js, no con Prisma: este esquema es la
+// documentación del modelo real. Las migraciones que se aplican son los ficheros supabase-*.sql.
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,30 +11,67 @@ datasource db {
 }
 
 model Cliente {
-  id     String   @id @default(cuid())
-  nombre String   @unique
-  ventas Venta[]
-  users  User[]
+  id      String  @id @default(cuid())
+  nombre  String  @unique
+  email   String?
+  logoUrl String?
+
+  // Siglas del Excel de ventas (LG, MC, EGI, VIN...). Informativo: un mismo cliente puede tener
+  // varias siglas, una por producto (KBR y SL son ambas MAPFRE).
+  codigo String?
+  activo Boolean @default(true)
+
+  // Panel HOME del Excel
+  poblacion      String?
+  urlProducto    String?
+  urlLooker      String?
+  contactoVentas String?
+  info           String?
+
+  ventas     Venta[]
+  users      User[]
+  estadosMes EstadoMes[]
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  role      String   // admin | client
-  clienteId String?
-  cliente   Cliente? @relation(fields: [clienteId], references: [id])
+  id              String   @id @default(cuid())
+  email           String   @unique
+  username        String?
+  password        String
+  initialPassword String?
+  role            String // admin | client
+  clienteId       String?
+  cliente         Cliente? @relation(fields: [clienteId], references: [id])
 }
 
 model Venta {
   id             String   @id @default(cuid())
   clienteId      String
   cliente        Cliente  @relation(fields: [clienteId], references: [id])
-  ota            String   // Tiqets, GetYourGuide, etc.
-  tipoEntrada    String   // General, Niño, Reducido
-  mes            String   // "01. Enero"
-  anio           Int
+  ota            String // Tiqets, GetYourGuide, Fever...
+  tipoEntrada    String // General, Niño, Reducido
+  mes            String // "01. Enero"
+  ano            Int
   numeroEntradas Int
-  producto       String   // 40 Minutos, 60 Minutos
+  producto       String // 40 Minutos, Vino catalán...
   createdAt      DateTime @default(now())
+
+  // Una fila por combinación: permite guardar por celda desde la parrilla y repetir la migración
+  // sin duplicar. Su ausencia es lo que dejó 6 copias de cada venta.
+  @@unique([clienteId, ota, tipoEntrada, producto, mes, ano], name: "Venta_natural_key")
+  @@index([clienteId, ano])
+}
+
+/// Casillas "ventas enviadas" / "facturas recibidas" de la hoja HOME del Excel.
+model EstadoMes {
+  id              String   @id @default(cuid())
+  clienteId       String
+  cliente         Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  ano             Int
+  mes             String
+  ventasEnviadas  Boolean  @default(false)
+  facturaRecibida Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  @@unique([clienteId, ano, mes])
 }
