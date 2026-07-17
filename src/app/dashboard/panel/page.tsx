@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Plus, X } from "lucide-react";
 
 const MESES = [
   "01. Enero",
@@ -47,6 +47,10 @@ export default function PanelPage() {
   const [ano, setAno] = useState(new Date().getFullYear());
   const [cargando, setCargando] = useState(true);
   const [message, setMessage] = useState<{ type: "ok" | "error"; text: string } | null>(null);
+  const [nuevoAbierto, setNuevoAbierto] = useState(false);
+  const [nuevoNombre, setNuevoNombre] = useState("");
+  const [nuevoCodigo, setNuevoCodigo] = useState("");
+  const [creando, setCreando] = useState(false);
 
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "{}") : null;
@@ -57,7 +61,10 @@ export default function PanelPage() {
       if (!token) return;
       setCargando(true);
       try {
-        const res = await fetch(`/api/panel?ano=${year}`, { headers: { Authorization: `Bearer ${token}` } });
+        const res = await fetch(`/api/panel?ano=${year}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        });
         const data = await res.json();
         setClientes(Array.isArray(data) ? data : []);
       } catch {
@@ -115,6 +122,39 @@ export default function PanelPage() {
     }
   }
 
+  async function crearCliente() {
+    const nombre = nuevoNombre.trim();
+    if (!nombre) return;
+    setCreando(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/clientes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ nombre, codigo: nuevoCodigo.trim() || null }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al crear el cliente");
+
+      if (!data.creado) {
+        setMessage({ type: "error", text: `"${data.nombre}" ya existe.` });
+        return;
+      }
+      setMessage({
+        type: "ok",
+        text: `"${data.nombre}" creado. Ya puedes meterle ventas en Datos mensuales; para darle acceso, créale el usuario en Usuarios.`,
+      });
+      setNuevoNombre("");
+      setNuevoCodigo("");
+      setNuevoAbierto(false);
+      await cargar(ano);
+    } catch (e) {
+      setMessage({ type: "error", text: e instanceof Error ? e.message : "Error" });
+    } finally {
+      setCreando(false);
+    }
+  }
+
   if (!isAdmin) {
     return <div className="text-slate-600">No tienes permisos para acceder a esta sección.</div>;
   }
@@ -128,18 +168,64 @@ export default function PanelPage() {
             Datos de contacto y seguimiento mensual de ventas enviadas y facturas recibidas.
           </p>
         </div>
-        <select
-          value={ano}
-          onChange={(e) => setAno(parseInt(e.target.value, 10))}
-          className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white"
-        >
-          {anos.map((a) => (
-            <option key={a} value={a}>
-              {a}
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setNuevoAbierto((v) => !v)}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
+          >
+            {nuevoAbierto ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+            {nuevoAbierto ? "Cancelar" : "Añadir cliente"}
+          </button>
+          <select
+            value={ano}
+            onChange={(e) => setAno(parseInt(e.target.value, 10))}
+            className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white"
+          >
+            {anos.map((a) => (
+              <option key={a} value={a}>
+                {a}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
+
+      {nuevoAbierto && (
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-wrap items-end gap-3">
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Nombre del cliente</label>
+            <input
+              autoFocus
+              value={nuevoNombre}
+              onChange={(e) => setNuevoNombre(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && crearCliente()}
+              placeholder="Museu Egipci"
+              className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white min-w-[240px]"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Siglas (opcional)</label>
+            <input
+              value={nuevoCodigo}
+              onChange={(e) => setNuevoCodigo(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && crearCliente()}
+              placeholder="EGI"
+              className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white w-28 uppercase"
+            />
+          </div>
+          <button
+            onClick={crearCliente}
+            disabled={!nuevoNombre.trim() || creando}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
+          >
+            {creando ? "Creando..." : "Crear"}
+          </button>
+          <p className="text-xs text-slate-500 basis-full">
+            El cliente sale en el panel y en Datos mensuales aunque no tenga ventas todavía. Para que pueda entrar al
+            dashboard, créale después el usuario en la pantalla de Usuarios.
+          </p>
+        </div>
+      )}
 
       {message && (
         <div className={`p-3 rounded-lg text-sm ${message.type === "ok" ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}>

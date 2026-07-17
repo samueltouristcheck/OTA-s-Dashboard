@@ -51,8 +51,10 @@ export async function GET(req: NextRequest) {
       };
     }
 
+    // Sense això el navegador es guarda la resposta i, en crear un client, sembla que no s'hagi creat.
     return NextResponse.json(
-      (clientes || []).map((c) => ({ ...c, estados: porCliente.get(c.id) ?? {} }))
+      (clientes || []).map((c) => ({ ...c, estados: porCliente.get(c.id) ?? {} })),
+      { headers: { "Cache-Control": "no-store" } }
     );
   } catch (e) {
     console.error(e);

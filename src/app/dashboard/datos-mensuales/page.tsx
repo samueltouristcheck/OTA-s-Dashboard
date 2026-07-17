@@ -82,7 +82,7 @@ export default function DatosMensualesPage() {
 
   useEffect(() => {
     if (!token || !isAdmin) return;
-    fetch("/api/clientes", { headers: { Authorization: `Bearer ${token}` } })
+    fetch("/api/clientes", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" })
       .then((r) => (r.ok ? r.json() : []))
       .then((c: Cliente[]) => {
         const lista = Array.isArray(c) ? c : [];
@@ -99,7 +99,10 @@ export default function DatosMensualesPage() {
       setCargando(true);
       try {
         const params = new URLSearchParams({ clienteId: cid, año: String(year) });
-        const res = await fetch(`/api/ventas?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+        const res = await fetch(`/api/ventas?${params}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        });
         const data = await res.json();
         const nuevas = filasDesdeVentas(Array.isArray(data) ? data : []);
         setFilas(nuevas);
@@ -155,7 +158,10 @@ export default function DatosMensualesPage() {
     setCargando(true);
     try {
       const params = new URLSearchParams({ clienteId, año: String(ano - 1) });
-      const res = await fetch(`/api/ventas?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`/api/ventas?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
       const data = await res.json();
       const previas = filasDesdeVentas(Array.isArray(data) ? data : []);
       if (!previas.length) {

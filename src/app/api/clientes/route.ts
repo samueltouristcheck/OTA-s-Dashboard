@@ -26,14 +26,18 @@ export async function GET(req: Request) {
     if (!incluirInactivos) query = query.eq("activo", true);
     const { data, error } = await query;
     if (error) throw error;
-    return NextResponse.json(data || []);
+    // Sin esto el navegador cachea la lista y un cliente recién creado parece que no se haya creado.
+    return NextResponse.json(data || [], { headers: { "Cache-Control": "no-store" } });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "Error al obtener clientes" }, { status: 500 });
   }
 }
 
-/** Crea o obtiene cliente por nombre (admin o super admin) */
+/**
+ * Crea el cliente, o devuelve el que ya existe con ese nombre (admin o super admin).
+ * `creado` distingue una cosa de la otra: el panel avisa si el cliente ya estaba.
+ */
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get("authorization");
@@ -42,19 +46,29 @@ export async function POST(req: NextRequest) {
     if (!payload || !canAccessClientesApi(payload)) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
-    const { nombre } = await req.json();
+    const { nombre, codigo } = await req.json();
     // Nombre canónico: si no, "VINSEUM" y "Vinseum" volverían a entrar como dos clientes.
     const nombreCanon = canonicalitzaNomClient(nombre || "");
     if (!nombreCanon) return NextResponse.json({ error: "Nombre requerido" }, { status: 400 });
-    const { data: existing } = await supabase.from("Cliente").select("id").ilike("nombre", nombreCanon).maybeSingle();
-    if (existing) return NextResponse.json(existing);
+
+    const { data: existing } = await supabase
+      .from("Cliente")
+      .select("id, nombre")
+      .ilike("nombre", nombreCanon)
+      .maybeSingle();
+    if (existing) return NextResponse.json({ ...existing, creado: false });
+
     const { data: created, error } = await supabase
       .from("Cliente")
-      .insert({ nombre: nombreCanon, activo: !clientSensePerfil(nombreCanon) })
-      .select("id")
+      .insert({
+        nombre: nombreCanon,
+        activo: !clientSensePerfil(nombreCanon),
+        codigo: codigo ? String(codigo).trim().toUpperCase() : null,
+      })
+      .select("id, nombre")
       .single();
     if (error) throw error;
-    return NextResponse.json(created);
+    return NextResponse.json({ ...created, creado: true });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "Error al crear cliente" }, { status: 500 });

@@ -53,7 +53,9 @@ export async function GET(req: NextRequest) {
       return MES_ORDER.indexOf(a.mes) - MES_ORDER.indexOf(b.mes);
     });
 
-    return NextResponse.json(formatted);
+    // Sense això el navegador es guarda la resposta i la graella pot ensenyar dades velles just
+    // després de desar.
+    return NextResponse.json(formatted, { headers: { "Cache-Control": "no-store" } });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "Error al obtener ventas" }, { status: 500 });
