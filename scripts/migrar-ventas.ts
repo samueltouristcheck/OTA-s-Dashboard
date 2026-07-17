@@ -64,17 +64,24 @@ function normalitzaMes(raw: string): string | null {
 async function upsertClient(nombre: string, codigo: string | null): Promise<string> {
   const { data: existent } = await supabase
     .from("Cliente")
-    .select("id, codigo")
+    .select("id, nombre, codigo")
     .ilike("nombre", nombre)
     .maybeSingle();
 
   const activo = !clientSensePerfil(nombre);
 
   if (existent) {
+    // El client ja existia amb una altra grafia ("VINSEUM" en comptes de "Vinseum"): li posem el nom
+    // canònic, o l'àlies no serviria de res per als clients antics.
     await supabase
       .from("Cliente")
-      .update({ activo, ...(codigo && !existent.codigo ? { codigo } : {}) })
+      .update({
+        activo,
+        ...(existent.nombre !== nombre ? { nombre } : {}),
+        ...(codigo && !existent.codigo ? { codigo } : {}),
+      })
       .eq("id", existent.id);
+    if (existent.nombre !== nombre) console.log(`  Reanomenat: "${existent.nombre}" -> "${nombre}"`);
     return existent.id;
   }
 

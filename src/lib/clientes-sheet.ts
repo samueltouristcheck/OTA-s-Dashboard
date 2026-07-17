@@ -17,7 +17,14 @@ export function normKey(s: string): string {
  * del dashboard ni hi poden entrar. A la base de dades són els que tenen `activo = false`.
  */
 const SENSE_PERFIL = new Set(
-  ["Castell d'Hostalric", "Museu de l'Art Prohibit", "Fundació Miró", "Alsa"].map((x) => normKey(x))
+  [
+    "Castell d'Hostalric",
+    // El full de respostes en diu "Museu de l'Art Prohibit" i els Excels "Museu d'Art Prohibit".
+    "Museu de l'Art Prohibit",
+    "Museu d'Art Prohibit",
+    "Fundació Miró",
+    "Alsa",
+  ].map((x) => normKey(x))
 );
 
 /**
