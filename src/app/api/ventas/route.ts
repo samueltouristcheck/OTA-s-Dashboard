@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { verifyToken } from "@/lib/auth";
+import { resolveClienteFilter } from "@/lib/ventas-cliente";
+import { fetchVentasRows } from "@/lib/ventas-db";
+import { applyStatsFilters, MES_ORDER, parseStatsFilters, type StatsRow } from "@/lib/stats";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
@@ -8,44 +13,44 @@ export async function GET(req: NextRequest) {
     const token = authHeader?.replace("Bearer ", "");
     const payload = token ? verifyToken(token) : null;
 
-    const { searchParams } = new URL(req.url);
-    const año = searchParams.get("año");
-    const mes = searchParams.get("mes");
-    const ota = searchParams.get("ota");
-    const tipoEntrada = searchParams.get("tipoEntrada");
-    const productoParam = searchParams.get("producto");
-    const productoList = productoParam ? productoParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
-    const clienteId = searchParams.get("clienteId");
-
-    let filterClienteId = payload?.role === "client" ? payload.clienteId : clienteId;
-    if (filterClienteId && !filterClienteId.startsWith("cliente-") && filterClienteId !== payload?.clienteId) {
-      const { data: cl } = await supabase.from("Cliente").select("id").ilike("nombre", filterClienteId).limit(1).maybeSingle();
-      if (cl) filterClienteId = cl.id;
+    if (!payload) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    let query = supabase.from("Venta").select("*").order("ano", { ascending: false }).order("mes", { ascending: true });
+    const { searchParams } = new URL(req.url);
+    const filters = parseStatsFilters(searchParams);
+    const cliente = await resolveClienteFilter(payload, searchParams.get("clienteId"));
 
-    if (filterClienteId) query = query.eq("clienteId", filterClienteId);
-    if (año) query = query.eq("ano", parseInt(año));
-    if (mes) query = query.eq("mes", mes);
-    if (ota) query = query.eq("ota", ota);
-    if (tipoEntrada) query = query.eq("tipoEntrada", tipoEntrada);
-    if (productoList.length === 1) query = query.eq("producto", productoList[0]);
-    if (productoList.length > 1) query = query.in("producto", productoList);
+    if (cliente.denyAll) return NextResponse.json([]);
 
-    const { data: ventas, error } = await query;
-    if (error) throw error;
+    const list = await fetchVentasRows(cliente.clienteId);
 
-    const list = ventas || [];
-    const clienteIds = [...new Set(list.map((v: { clienteId: string }) => v.clienteId))];
+    // Filtrem en memòria per compartir la lògica multi-valor amb la font de Sheets.
+    const statsRows: StatsRow[] = list.map((v) => ({
+      ota: v.ota,
+      tipoEntrada: v.tipoEntrada,
+      mes: v.mes,
+      año: v.ano,
+      numeroEntradas: v.numeroEntradas,
+      producto: v.producto,
+    }));
+    const conservats = new Set(applyStatsFilters(statsRows, filters));
+    const filtered = list.filter((_, i) => conservats.has(statsRows[i]));
+
+    const clienteIds = [...new Set(filtered.map((v) => v.clienteId))];
     const { data: clientes } = await supabase.from("Cliente").select("id,nombre").in("id", clienteIds);
     const clienteMap = new Map((clientes || []).map((c: { id: string; nombre: string }) => [c.id, c]));
 
-    const formatted = list.map((v: { clienteId: string; ano: number }) => ({
+    const formatted = filtered.map((v) => ({
       ...v,
       anio: v.ano,
       cliente: clienteMap.get(v.clienteId) || { nombre: "" },
     }));
+
+    formatted.sort((a, b) => {
+      if (a.anio !== b.anio) return b.anio - a.anio;
+      return MES_ORDER.indexOf(a.mes) - MES_ORDER.indexOf(b.mes);
+    });
 
     return NextResponse.json(formatted);
   } catch (e) {
@@ -66,6 +71,10 @@ export async function POST(req: NextRequest) {
     const { clienteId, ota, tipoEntrada, mes, ano, numeroEntradas, producto } = body;
     if (!clienteId || !mes || numeroEntradas == null) {
       return NextResponse.json({ error: "Cliente, mes y número de entradas requeridos" }, { status: 400 });
+    }
+    // Els ids sintètics de /api/sheets/clientes no existeixen a la base de dades.
+    if (String(clienteId).startsWith("cliente-")) {
+      return NextResponse.json({ error: "Cliente no válido" }, { status: 400 });
     }
     const anoNum = parseInt(String(ano || new Date().getFullYear()), 10);
     const numEnt = parseInt(String(numeroEntradas), 10);
@@ -89,6 +98,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ...data, anio: data.ano, cliente: { nombre: "" } });
   } catch (e) {
     console.error(e);
-    return NextResponse.json({ error: "Error al obtener ventas" }, { status: 500 });
+    return NextResponse.json({ error: "Error al crear la venta" }, { status: 500 });
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { verifyToken } from "@/lib/auth";
+import { normalitzaClientSheet } from "@/lib/clientes-sheet";
 import Papa from "papaparse";
 
 export async function POST(req: NextRequest) {
@@ -29,8 +30,16 @@ export async function POST(req: NextRequest) {
     const clientesMap = new Map<string, string>();
     let imported = 0;
 
+    let descartados = 0;
+
     for (const row of data as Record<string, string>[]) {
-      const clienteNombre = (row["Cliente"] || row["cliente"] || "").trim();
+      // Mateixos àlies i exclusions que la lectura de la fulla: si no, "VINSEUM" i "Vinseum" tornarien
+      // a entrar com a dos clients diferents.
+      const clienteNombre = normalitzaClientSheet(row["Cliente"] || row["cliente"] || "") ?? "";
+      if (!clienteNombre) {
+        descartados++;
+        continue;
+      }
       const ota = (row["OTA"] || row["ota"] || "").trim();
       const tipoEntrada = (row["Tipo de Entrada"] || row["tipoEntrada"] || "General").trim();
       const mes = (row["Mes respuesta"] || row["mes"] || "01. Enero").trim();
@@ -38,7 +47,10 @@ export async function POST(req: NextRequest) {
       const producto = (row["Producto"] || row["producto"] || "General").trim();
       const anio = parseInt(row["Año"] || row["año"] || String(new Date().getFullYear()), 10);
 
-      if (!clienteNombre || !ota || isNaN(numeroEntradas)) continue;
+      if (!ota || isNaN(numeroEntradas)) {
+        descartados++;
+        continue;
+      }
 
       let clienteId = clientesMap.get(clienteNombre);
       if (!clienteId) {
@@ -67,7 +79,7 @@ export async function POST(req: NextRequest) {
       imported++;
     }
 
-    return NextResponse.json({ imported });
+    return NextResponse.json({ imported, descartados });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "Error al importar" }, { status: 500 });

@@ -4,6 +4,7 @@ import { verifyToken } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 import { fetchSheetData } from "@/lib/google-sheets";
 import { clienteSheetsEquiv } from "@/lib/clientes-sheet";
+import { computeStats, parseStatsFilters, type StatsRow } from "@/lib/stats";
 
 export async function GET(req: NextRequest) {
   try {
@@ -25,103 +26,28 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const clienteNombre = searchParams.get("clienteId") || searchParams.get("cliente");
-    const añoParam = searchParams.get("año");
-    const mesParam = searchParams.get("mes");
-    const otaParam = searchParams.get("ota");
-    const tipoParam = searchParams.get("tipoEntrada");
-    const productoParam = searchParams.get("producto");
-    const añoList = añoParam ? añoParam.split(",").map((s) => parseInt(s.trim())).filter((n) => !isNaN(n)) : [];
-    const mesList = mesParam ? mesParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
-    const otaList = otaParam ? otaParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
-    const tipoList = tipoParam ? tipoParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
-    const productoList = productoParam ? productoParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
+    const filters = parseStatsFilters(searchParams);
 
-    const mesMatches = (rowMes: string, filterMes: string) => {
-      if (!filterMes) return true;
-      const rowNorm = String(rowMes || "").trim();
-      const filterNorm = String(filterMes || "").trim();
-      if (rowNorm === filterNorm) return true;
-      const filterName = filterNorm.replace(/^\d+\.\s*/, "").trim();
-      return rowNorm === filterName || rowNorm.endsWith(filterName);
-    };
-
-    const clienteMatch = clienteSheetsEquiv;
-
-    const applyFilters = (data: typeof rows, exclude?: { mes?: boolean; ota?: boolean; tipo?: boolean }) => {
-      let f = [...data];
-      if (payload.role === "client") {
-        if (payload.clienteNombre) {
-          f = f.filter((r) => clienteMatch(r.cliente, payload.clienteNombre!));
-        } else {
-          f = []; // Cliente sin clienteNombre: no mostrar datos de otros
-        }
-      } else if (clienteNombre) {
-        f = f.filter((r) => clienteMatch(r.cliente, clienteNombre));
-      }
-      if (añoList.length) f = f.filter((r) => añoList.includes(r.año));
-      if (mesList.length && !exclude?.mes) f = f.filter((r) => mesList.some((m) => mesMatches(r.mes, m)));
-      if (otaList.length && !exclude?.ota) f = f.filter((r) => otaList.includes(String(r.ota || "").trim()));
-      if (tipoList.length && !exclude?.tipo) f = f.filter((r) => tipoList.includes(String(r.tipoEntrada || "").trim()));
-      if (productoList.length) f = f.filter((r) => productoList.includes(String(r.producto || "").trim()));
-      return f;
-    };
-
-    const filtered = applyFilters(rows);
-    const filteredSinMes = applyFilters(rows, { mes: true });
-    const filteredSinOta = applyFilters(rows, { ota: true });
-    const filteredSinTipo = applyFilters(rows, { tipo: true });
-
-    const total = filtered.reduce((s, v) => s + v.numeroEntradas, 0);
-    const porMes = filteredSinMes.reduce((acc, v) => {
-      acc[v.mes] = (acc[v.mes] || 0) + v.numeroEntradas;
-      return acc;
-    }, {} as Record<string, number>);
-    const porOta = filteredSinOta.reduce((acc, v) => {
-      acc[v.ota] = (acc[v.ota] || 0) + v.numeroEntradas;
-      return acc;
-    }, {} as Record<string, number>);
-    const porTipo = filteredSinTipo.reduce((acc, v) => {
-      acc[v.tipoEntrada] = (acc[v.tipoEntrada] || 0) + v.numeroEntradas;
-      return acc;
-    }, {} as Record<string, number>);
-    const porProducto = filtered.reduce((acc, v) => {
-      acc[v.producto] = (acc[v.producto] || 0) + v.numeroEntradas;
-      return acc;
-    }, {} as Record<string, number>);
-    const porAño = filtered.reduce((acc, v) => {
-      acc[v.año] = (acc[v.año] || 0) + v.numeroEntradas;
-      return acc;
-    }, {} as Record<number, number>);
-
-    // Opciones de filtro: solo datos del cliente (o del cliente elegido por admin), no toda la hoja
-    let rowsForFilterOptions = rows;
+    // Un client només veu les seves dades; sense nom de client, cap dada (mai totes).
+    let rowsCliente = rows;
     if (payload.role === "client") {
-      if (payload.clienteNombre) {
-        rowsForFilterOptions = rows.filter((r) => clienteMatch(r.cliente, payload.clienteNombre!));
-      } else {
-        rowsForFilterOptions = [];
-      }
+      rowsCliente = payload.clienteNombre
+        ? rows.filter((r) => clienteSheetsEquiv(r.cliente, payload.clienteNombre!))
+        : [];
     } else if (clienteNombre) {
-      rowsForFilterOptions = rows.filter((r) => clienteMatch(r.cliente, clienteNombre));
+      rowsCliente = rows.filter((r) => clienteSheetsEquiv(r.cliente, clienteNombre));
     }
 
-    const tipos = [...new Set(rowsForFilterOptions.map((r) => String(r.tipoEntrada || "").trim()).filter(Boolean))].sort();
-    const otas = [...new Set(rowsForFilterOptions.map((r) => String(r.ota || "").trim()).filter(Boolean))].sort();
-    const años = [...new Set(rowsForFilterOptions.map((r) => r.año).filter(Boolean))].sort((a, b) => b - a);
-    const MES_ORDER = ["01. Enero", "02. Febrero", "03. Marzo", "04. Abril", "05. Mayo", "06. Junio", "07. Julio", "08. Agosto", "09. Septiembre", "10. Octubre", "11. Noviembre", "12. Diciembre"];
-    const mesesEnSheet = new Set(rowsForFilterOptions.map((r) => String(r.mes || "").trim()).filter(Boolean));
-    const meses = MES_ORDER.filter((m) => mesesEnSheet.has(m) || [...mesesEnSheet].some((s) => s.includes(m.replace(/^\d+\.\s*/, ""))));
-    const productos = [...new Set(rowsForFilterOptions.map((r) => String(r.producto || "").trim()).filter(Boolean))].sort();
+    const statsRows: StatsRow[] = rowsCliente.map((r) => ({
+      ota: r.ota,
+      tipoEntrada: r.tipoEntrada,
+      mes: r.mes,
+      año: r.año,
+      numeroEntradas: r.numeroEntradas,
+      producto: r.producto,
+    }));
 
-    return NextResponse.json({
-      total,
-      porMes,
-      porOta,
-      porTipo,
-      porProducto,
-      porAño,
-      filterOptions: { tipos, otas, años, meses: meses.length ? meses : MES_ORDER, productos },
-    });
+    return NextResponse.json(computeStats(statsRows, filters));
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "Error al obtener stats de Google Sheets" }, { status: 500 });

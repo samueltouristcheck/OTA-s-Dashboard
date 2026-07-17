@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
 import { verifyToken } from "@/lib/auth";
+import { resolveClienteFilter } from "@/lib/ventas-cliente";
+import { fetchVentasRows } from "@/lib/ventas-db";
+import { computeComparativa, parseStatsFilters, type StatsRow } from "@/lib/stats";
 
 export const dynamic = "force-dynamic";
-
-const MES_ORDER = ["01. Enero", "02. Febrero", "03. Marzo", "04. Abril", "05. Mayo", "06. Junio", "07. Julio", "08. Agosto", "09. Septiembre", "10. Octubre", "11. Noviembre", "12. Diciembre"];
 
 export async function GET(req: NextRequest) {
   try {
@@ -14,74 +14,28 @@ export async function GET(req: NextRequest) {
     if (!payload) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
     const { searchParams } = new URL(req.url);
-    const clienteId = searchParams.get("clienteId");
     const comparativa = searchParams.get("comparativa") || "";
-    const añoParam = searchParams.get("año");
-    const mesParam = searchParams.get("mes");
-    const otaParam = searchParams.get("ota");
-    const tipoParam = searchParams.get("tipoEntrada");
-    const productoParam = searchParams.get("producto");
-    let filterClienteId = payload.role === "client" ? payload.clienteId : clienteId;
-    if (filterClienteId && !filterClienteId.startsWith("cliente-")) {
-      const { data: cl } = await supabase.from("Cliente").select("id").ilike("nombre", filterClienteId).limit(1).maybeSingle();
-      if (cl) filterClienteId = cl.id;
+    const filters = parseStatsFilters(searchParams);
+    const cliente = await resolveClienteFilter(payload, searchParams.get("clienteId"));
+
+    let statsRows: StatsRow[] = [];
+    if (!cliente.denyAll) {
+      const data = await fetchVentasRows(cliente.clienteId);
+      statsRows = data.map((v) => ({
+        ota: v.ota,
+        tipoEntrada: v.tipoEntrada,
+        mes: v.mes,
+        año: v.ano,
+        numeroEntradas: v.numeroEntradas,
+        producto: v.producto,
+      }));
     }
 
-    let query = supabase.from("Venta").select("*");
-    if (filterClienteId) query = query.eq("clienteId", filterClienteId);
-    const { data: list, error } = await query;
-    if (error) throw error;
-    let ventas = list || [];
-
-    const añoList = añoParam ? añoParam.split(",").map((s) => parseInt(s.trim())).filter((n) => !isNaN(n)) : [];
-    const mesList = mesParam ? mesParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
-    const otaList = otaParam ? otaParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
-    const tipoList = tipoParam ? tipoParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
-    const productoList = productoParam ? productoParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
-
-    if (añoList.length) ventas = ventas.filter((v) => añoList.includes(v.ano));
-    if (mesList.length) ventas = ventas.filter((v) => mesList.some((m) => v.mes === m || v.mes?.includes(m.replace(/^\d+\.\s*/, ""))));
-    if (otaList.length) ventas = ventas.filter((v) => otaList.includes(v.ota || ""));
-    if (tipoList.length) ventas = ventas.filter((v) => tipoList.includes(v.tipoEntrada || ""));
-    if (productoList.length) ventas = ventas.filter((v) => productoList.includes(String(v.producto || "").trim()));
-
-    const filtered = ventas;
-
-    if (comparativa === "interanual") {
-      const años = [...new Set(filtered.map((v) => v.ano))].sort((a, b) => b - a);
-      const porAño: Record<number, { porMes: Record<string, number>; total: number; porOta: Record<string, number> }> = {};
-      for (const a of años) {
-        const byYear = filtered.filter((v) => v.ano === a);
-        const porMes: Record<string, number> = {};
-        const porOta: Record<string, number> = {};
-        let total = 0;
-        for (const v of byYear) {
-          porMes[v.mes] = (porMes[v.mes] || 0) + v.numeroEntradas;
-          porOta[v.ota] = (porOta[v.ota] || 0) + v.numeroEntradas;
-          total += v.numeroEntradas;
-        }
-        porAño[a] = { porMes, total, porOta };
-      }
-      return NextResponse.json({ tipo: "interanual", porAño, años });
+    const result = computeComparativa(statsRows, filters, comparativa);
+    if (!result) {
+      return NextResponse.json({ error: "comparativa debe ser interanual o intermensual" }, { status: 400 });
     }
-
-    if (comparativa === "intermensual") {
-      const meses = [...new Set(filtered.map((v) => v.mes))].sort((a, b) => MES_ORDER.indexOf(a) - MES_ORDER.indexOf(b));
-      const porMes: Record<string, { porAño: Record<number, number>; total: number }> = {};
-      for (const m of meses) {
-        const byMes = filtered.filter((v) => v.mes === m);
-        const porAño: Record<number, number> = {};
-        let total = 0;
-        for (const v of byMes) {
-          porAño[v.ano] = (porAño[v.ano] || 0) + v.numeroEntradas;
-          total += v.numeroEntradas;
-        }
-        porMes[m] = { porAño, total };
-      }
-      return NextResponse.json({ tipo: "intermensual", porMes, meses });
-    }
-
-    return NextResponse.json({ error: "comparativa debe ser interanual o intermensual" }, { status: 400 });
+    return NextResponse.json(result);
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "Error al obtener comparativa" }, { status: 500 });

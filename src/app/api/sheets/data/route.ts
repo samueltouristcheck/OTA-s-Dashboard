@@ -4,6 +4,7 @@ import { verifyToken } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 import { fetchSheetData } from "@/lib/google-sheets";
 import { clienteSheetsEquiv } from "@/lib/clientes-sheet";
+import { applyStatsFilters, MES_ORDER, parseStatsFilters, type StatsRow } from "@/lib/stats";
 
 export async function GET(req: NextRequest) {
   try {
@@ -25,44 +26,28 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const clienteNombre = searchParams.get("clienteId") || searchParams.get("cliente");
-    const añoParam = searchParams.get("año");
-    const mesParam = searchParams.get("mes");
-    const otaParam = searchParams.get("ota");
-    const tipoParam = searchParams.get("tipoEntrada");
-    const productoParam = searchParams.get("producto");
-    const productoList = productoParam ? productoParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
-    const añoList = añoParam ? añoParam.split(",").map((s) => parseInt(s.trim())).filter((n) => !isNaN(n)) : [];
-    const mesList = mesParam ? mesParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
-    const otaList = otaParam ? otaParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
-    const tipoList = tipoParam ? tipoParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
+    const filters = parseStatsFilters(searchParams);
 
-    const mesMatches = (rowMes: string, filterMes: string) => {
-      if (!filterMes) return true;
-      const rowNorm = String(rowMes || "").trim();
-      const filterNorm = String(filterMes || "").trim();
-      if (rowNorm === filterNorm) return true;
-      const filterName = filterNorm.replace(/^\d+\.\s*/, "").trim();
-      return rowNorm === filterName || rowNorm.endsWith(filterName);
-    };
-
-    const clienteMatch = clienteSheetsEquiv;
-
-    let filtered = rows;
-
+    // Un client només veu les seves dades; sense nom de client, cap dada (mai les dels altres).
+    let rowsCliente = rows;
     if (payload.role === "client") {
-      if (payload.clienteNombre) {
-        filtered = filtered.filter((r) => clienteMatch(r.cliente, payload.clienteNombre!));
-      } else {
-        filtered = []; // Cliente sin clienteNombre: no mostrar datos de otros
-      }
+      rowsCliente = payload.clienteNombre
+        ? rows.filter((r) => clienteSheetsEquiv(r.cliente, payload.clienteNombre!))
+        : [];
     } else if (clienteNombre) {
-      filtered = filtered.filter((r) => clienteMatch(r.cliente, clienteNombre));
+      rowsCliente = rows.filter((r) => clienteSheetsEquiv(r.cliente, clienteNombre));
     }
-    if (añoList.length) filtered = filtered.filter((r) => añoList.includes(r.año));
-    if (mesList.length) filtered = filtered.filter((r) => mesList.some((m) => mesMatches(r.mes, m)));
-    if (otaList.length) filtered = filtered.filter((r) => otaList.includes(String(r.ota || "").trim()));
-    if (tipoList.length) filtered = filtered.filter((r) => tipoList.includes(String(r.tipoEntrada || "").trim()));
-    if (productoList.length) filtered = filtered.filter((r) => productoList.includes(String(r.producto || "").trim()));
+
+    const statsRows: StatsRow[] = rowsCliente.map((r) => ({
+      ota: r.ota,
+      tipoEntrada: r.tipoEntrada,
+      mes: r.mes,
+      año: r.año,
+      numeroEntradas: r.numeroEntradas,
+      producto: r.producto,
+    }));
+    const conservats = new Set(applyStatsFilters(statsRows, filters));
+    const filtered = rowsCliente.filter((_, i) => conservats.has(statsRows[i]));
 
     const ventas = filtered.map((r, i) => ({
       id: `sheet-${i}`,
@@ -77,8 +62,7 @@ export async function GET(req: NextRequest) {
 
     ventas.sort((a, b) => {
       if (a.anio !== b.anio) return b.anio - a.anio;
-      const MES = ["01. Enero", "02. Febrero", "03. Marzo", "04. Abril", "05. Mayo", "06. Junio", "07. Julio", "08. Agosto", "09. Septiembre", "10. Octubre", "11. Noviembre", "12. Diciembre"];
-      return MES.indexOf(a.mes) - MES.indexOf(b.mes);
+      return MES_ORDER.indexOf(a.mes) - MES_ORDER.indexOf(b.mes);
     });
 
     return NextResponse.json(ventas);

@@ -16,7 +16,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:loginevent": "tsx scripts/ensure-loginevent.ts",
     "import:csv": "tsx scripts/import-csv.ts",
-    "clientes:list": "tsx scripts/listar-clientes.ts"
+    "clientes:list": "tsx scripts/listar-clientes.ts",
+    "test:stats": "tsx scripts/test-stats.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

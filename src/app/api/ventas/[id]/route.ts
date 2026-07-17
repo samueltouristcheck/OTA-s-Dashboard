@@ -17,7 +17,13 @@ export async function PUT(
     const body = await req.json();
     const { clienteId, ota, tipoEntrada, mes, ano, numeroEntradas, producto } = body;
     const updates: Record<string, unknown> = {};
-    if (clienteId != null) updates.clienteId = clienteId;
+    if (clienteId != null) {
+      // Els ids de /api/sheets/clientes són sintètics: si s'escriuen, la venda queda orfe.
+      if (String(clienteId).startsWith("cliente-")) {
+        return NextResponse.json({ error: "Cliente no válido" }, { status: 400 });
+      }
+      updates.clienteId = clienteId;
+    }
     if (ota != null) updates.ota = String(ota).trim();
     if (tipoEntrada != null) updates.tipoEntrada = String(tipoEntrada).trim();
     if (mes != null) updates.mes = String(mes).trim();

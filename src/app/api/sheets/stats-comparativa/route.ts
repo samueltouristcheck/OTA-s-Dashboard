@@ -4,8 +4,7 @@ import { verifyToken } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 import { fetchSheetData } from "@/lib/google-sheets";
 import { clienteSheetsEquiv } from "@/lib/clientes-sheet";
-
-const MES_ORDER = ["01. Enero", "02. Febrero", "03. Marzo", "04. Abril", "05. Mayo", "06. Junio", "07. Julio", "08. Agosto", "09. Septiembre", "10. Octubre", "11. Noviembre", "12. Diciembre"];
+import { computeComparativa, parseStatsFilters, type StatsRow } from "@/lib/stats";
 
 export async function GET(req: NextRequest) {
   try {
@@ -28,81 +27,31 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const clienteNombre = searchParams.get("clienteId") || searchParams.get("cliente");
     const comparativa = searchParams.get("comparativa") || "";
-    const añoParam = searchParams.get("año");
-    const mesParam = searchParams.get("mes");
-    const otaParam = searchParams.get("ota");
-    const tipoParam = searchParams.get("tipoEntrada");
-    const productoParam = searchParams.get("producto");
-    const añoList = añoParam ? añoParam.split(",").map((s) => parseInt(s.trim())).filter((n) => !isNaN(n)) : [];
-    const mesList = mesParam ? mesParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
-    const otaList = otaParam ? otaParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
-    const tipoList = tipoParam ? tipoParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
-    const productoList = productoParam ? productoParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
+    const filters = parseStatsFilters(searchParams);
 
-    const mesMatches = (rowMes: string, filterMes: string) => {
-      if (!filterMes) return true;
-      const rowNorm = String(rowMes || "").trim();
-      const filterNorm = String(filterMes || "").trim();
-      if (rowNorm === filterNorm) return true;
-      const filterName = filterNorm.replace(/^\d+\.\s*/, "").trim();
-      return rowNorm === filterName || rowNorm.endsWith(filterName);
-    };
-
-    let filtered = rows;
-    const clienteMatch = clienteSheetsEquiv;
-
+    let rowsCliente = rows;
     if (payload.role === "client") {
-      if (payload.clienteNombre) {
-        filtered = filtered.filter((r) => clienteMatch(r.cliente, payload.clienteNombre!));
-      } else {
-        filtered = [];
-      }
+      rowsCliente = payload.clienteNombre
+        ? rows.filter((r) => clienteSheetsEquiv(r.cliente, payload.clienteNombre!))
+        : [];
     } else if (clienteNombre) {
-      filtered = filtered.filter((r) => clienteMatch(r.cliente, clienteNombre));
-    }
-    if (mesList.length) filtered = filtered.filter((r) => mesList.some((m) => mesMatches(r.mes, m)));
-    if (otaList.length) filtered = filtered.filter((r) => otaList.includes(String(r.ota || "").trim()));
-    if (tipoList.length) filtered = filtered.filter((r) => tipoList.includes(String(r.tipoEntrada || "").trim()));
-    if (productoList.length) filtered = filtered.filter((r) => productoList.includes(String(r.producto || "").trim()));
-
-    if (comparativa === "interanual") {
-      let años = [...new Set(filtered.map((r) => r.año))].sort((a, b) => b - a);
-      if (añoList.length) años = años.filter((a) => añoList.includes(a));
-      const porAño: Record<number, { porMes: Record<string, number>; total: number; porOta: Record<string, number> }> = {};
-      for (const a of años) {
-        const byYear = filtered.filter((r) => r.año === a);
-        const porMes: Record<string, number> = {};
-        const porOta: Record<string, number> = {};
-        let total = 0;
-        for (const r of byYear) {
-          porMes[r.mes] = (porMes[r.mes] || 0) + r.numeroEntradas;
-          porOta[r.ota] = (porOta[r.ota] || 0) + r.numeroEntradas;
-          total += r.numeroEntradas;
-        }
-        porAño[a] = { porMes, total, porOta };
-      }
-      return NextResponse.json({ tipo: "interanual", porAño, años });
+      rowsCliente = rows.filter((r) => clienteSheetsEquiv(r.cliente, clienteNombre));
     }
 
-    if (comparativa === "intermensual") {
-      let intermensualData = filtered;
-      if (añoList.length) intermensualData = intermensualData.filter((r) => añoList.includes(r.año));
-      const meses = [...new Set(intermensualData.map((r) => r.mes))].sort((a, b) => MES_ORDER.indexOf(a) - MES_ORDER.indexOf(b));
-      const porMes: Record<string, { porAño: Record<number, number>; total: number }> = {};
-      for (const m of meses) {
-        const byMes = intermensualData.filter((r) => mesMatches(r.mes, m));
-        const porAño: Record<number, number> = {};
-        let total = 0;
-        for (const r of byMes) {
-          porAño[r.año] = (porAño[r.año] || 0) + r.numeroEntradas;
-          total += r.numeroEntradas;
-        }
-        porMes[m] = { porAño, total };
-      }
-      return NextResponse.json({ tipo: "intermensual", porMes, meses });
-    }
+    const statsRows: StatsRow[] = rowsCliente.map((r) => ({
+      ota: r.ota,
+      tipoEntrada: r.tipoEntrada,
+      mes: r.mes,
+      año: r.año,
+      numeroEntradas: r.numeroEntradas,
+      producto: r.producto,
+    }));
 
-    return NextResponse.json({ error: "comparativa debe ser interanual o intermensual" }, { status: 400 });
+    const result = computeComparativa(statsRows, filters, comparativa);
+    if (!result) {
+      return NextResponse.json({ error: "comparativa debe ser interanual o intermensual" }, { status: 400 });
+    }
+    return NextResponse.json(result);
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "Error al obtener comparativa" }, { status: 500 });
