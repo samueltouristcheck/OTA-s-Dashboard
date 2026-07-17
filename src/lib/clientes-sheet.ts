@@ -1,8 +1,9 @@
 /**
- * Regles sobre el nom de client a la columna "Cliente" de Google Sheets.
- * S'aplica a totes les lectures de la fulla (stats, dades, llista de clients, sync).
+ * Regles sobre el nom de client de les vendes.
+ * S'apliquen a totes les lectures (stats, dades, llista de clients, sync) i a la migració.
  */
 
+/** Clau de comparació: sense majúscules, accents ni espais als extrems. */
 function normKey(s: string): string {
   return s
     .trim()
@@ -11,8 +12,11 @@ function normKey(s: string): string {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
-/** Clients que no s'han de mostrar ni comptabilitzar. */
-const EXCLUITS = new Set(
+/**
+ * Clients de qui es guarden les vendes però que no tenen perfil: no surten a la llista de clients
+ * del dashboard ni hi poden entrar. A la base de dades són els que tenen `activo = false`.
+ */
+const SENSE_PERFIL = new Set(
   ["Castell d'Hostalric", "Museu de l'Art Prohibit", "Fundació Miró", "Alsa"].map((x) => normKey(x))
 );
 
@@ -30,13 +34,26 @@ const ALIAS_CANONIC: Record<string, string> = {
   vinseum: "Vinseum",
 };
 
-export function normalitzaClientSheet(cliente: string): string | null {
+/** Nom canònic del client. Retorna null només si el nom és buit. */
+export function canonicalitzaNomClient(cliente: string): string | null {
   const t = cliente.trim();
   if (!t) return null;
-  const k = normKey(t);
-  if (EXCLUITS.has(k)) return null;
-  if (ALIAS_CANONIC[k]) return ALIAS_CANONIC[k];
-  return t;
+  return ALIAS_CANONIC[normKey(t)] ?? t;
+}
+
+/** Si el client no ha de tenir perfil al dashboard (les vendes sí que es guarden). */
+export function clientSensePerfil(cliente: string): boolean {
+  return SENSE_PERFIL.has(normKey(cliente));
+}
+
+/**
+ * Nom canònic per a les lectures del dashboard: null si el client no hi ha de sortir.
+ * La migració, en canvi, fa servir {@link canonicalitzaNomClient} i marca `activo = false`.
+ */
+export function normalitzaClientSheet(cliente: string): string | null {
+  const nom = canonicalitzaNomClient(cliente);
+  if (!nom) return null;
+  return clientSensePerfil(nom) ? null : nom;
 }
 
 /**
