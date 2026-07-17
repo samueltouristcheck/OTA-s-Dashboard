@@ -3,14 +3,17 @@ import bcrypt from "bcryptjs";
 import { supabase } from "@/lib/supabase";
 import { verifyToken } from "@/lib/auth";
 import { isSuperAdmin } from "@/lib/super-admin";
+import { generaPassword } from "@/lib/password";
 
 /**
- * POST: Crea o actualiza el usuario de cada cliente con perfil.
- * Usuario = nombre del cliente, contraseña = cliente123 (bcrypt).
+ * POST: Crea el usuario de los clientes con perfil que todavía no tengan uno.
  *
- * Antes sacaba los nombres de Google Sheets, así que un cliente dado de alta en el panel (el Museu
- * Egipci, por ejemplo) no llegaba nunca a tener usuario. Ahora sale de la tabla Cliente, que es la
- * fuente desde que las ventas viven en la base de datos.
+ * NO toca a los que ya funcionan: cada cliente tiene su propia contraseña y esto se la borraría.
+ * Antes reescribía la de todos a "cliente123" en cada pasada, así que cambiarle la contraseña a un
+ * cliente no servía de nada en cuanto alguien pulsaba el botón.
+ *
+ * Los nombres salen de la tabla Cliente. Antes salían de Google Sheets, y por eso a un cliente dado
+ * de alta en el panel (el Museu Egipci) no le creaba nunca el usuario.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -34,9 +37,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "No hay clientes" });
     }
 
-    const hashedPassword = await bcrypt.hash("cliente123", 10);
-    let created = 0;
-    let updated = 0;
+    const creados: string[] = [];
+    let yaTenian = 0;
 
     for (const cliente of clientes) {
       const { data: existingUser } = await supabase
@@ -47,11 +49,7 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
 
       if (existingUser) {
-        await supabase
-          .from("User")
-          .update({ username: cliente.nombre, email: cliente.nombre, password: hashedPassword })
-          .eq("id", existingUser.id);
-        updated++;
+        yaTenian++;
         continue;
       }
 
@@ -63,21 +61,23 @@ export async function POST(req: NextRequest) {
         .limit(1);
       if (dupUsers?.length) continue;
 
+      const password = generaPassword();
       await supabase.from("User").insert({
         username: cliente.nombre,
         email: cliente.nombre,
-        password: hashedPassword,
+        password: await bcrypt.hash(password, 10),
+        initialPassword: password,
         role: "client",
         clienteId: cliente.id,
       });
-      created++;
+      creados.push(cliente.nombre);
     }
 
-    return NextResponse.json({
-      message: `Sincronizado: ${created} creados, ${updated} actualizados. Usuario = nombre del cliente, Contraseña = cliente123`,
-      created,
-      updated,
-    });
+    const message = creados.length
+      ? `${creados.length} acceso(s) creado(s): ${creados.join(", ")}. Sus contraseñas están en la pantalla de Clientes. Los ${yaTenian} que ya tenían acceso no se han tocado.`
+      : `Todos los clientes (${yaTenian}) ya tienen acceso. No se ha cambiado nada.`;
+
+    return NextResponse.json({ message, created: creados.length, sinTocar: yaTenian });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: String(e) }, { status: 500 });

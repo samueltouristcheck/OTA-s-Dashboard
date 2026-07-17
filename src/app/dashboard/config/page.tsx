@@ -5,7 +5,6 @@ import { RefreshCw, Upload, Users, Image, KeyRound } from "lucide-react";
 
 export default function ConfigPage() {
   const [syncingUsers, setSyncingUsers] = useState(false);
-  const [fixingPasswords, setFixingPasswords] = useState(false);
   const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState<{ type: "ok" | "error"; text: string } | null>(null);
   const [logoUrl, setLogoUrl] = useState("");
@@ -46,25 +45,6 @@ export default function ConfigPage() {
       setMessage({ type: "error", text: e instanceof Error ? e.message : "Error al sincronizar usuarios" });
     } finally {
       setSyncingUsers(false);
-    }
-  }
-
-  async function fixPasswords() {
-    if (!token) return;
-    setFixingPasswords(true);
-    setMessage(null);
-    try {
-      const res = await fetch("/api/auth/fix-passwords", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error");
-      setMessage({ type: "ok", text: data.message });
-    } catch (e) {
-      setMessage({ type: "error", text: e instanceof Error ? e.message : "Error" });
-    } finally {
-      setFixingPasswords(false);
     }
   }
 
@@ -392,10 +372,22 @@ export default function ConfigPage() {
         <div className="p-6 bg-white rounded-xl border border-slate-200 space-y-4">
           <h2 className="font-medium text-slate-800 flex items-center gap-2">
             <Users className="w-5 h-5" />
-            Sincronizar usuarios cliente
+            Crear los accesos que falten
           </h2>
           <p className="text-sm text-slate-600">
-            Crea o actualiza usuarios para cada cliente de Google Sheets. Usuario = nombre del cliente, contraseña = cliente123. Usa esto si el login de clientes falla.
+            Da de alta el usuario de los clientes que todavía no tengan uno, con una contraseña propia para cada uno.
+            No toca a los que ya funcionan.
+          </p>
+          <p className="text-sm text-slate-500">
+            Lo normal es no necesitar esto: los clientes nuevos ya salen con su acceso desde{" "}
+            <a href="/dashboard/panel" className="text-blue-600 hover:underline">
+              Panel de clientes
+            </a>
+            . Para cambiarle la contraseña a uno, ve a{" "}
+            <a href="/dashboard/usuarios" className="text-blue-600 hover:underline">
+              Usuarios
+            </a>
+            .
           </p>
           <button
             onClick={syncClientes}
@@ -403,16 +395,7 @@ export default function ConfigPage() {
             className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <RefreshCw className={`w-4 h-4 ${syncingUsers ? "animate-spin" : ""}`} />
-            {syncingUsers ? "Sincronizando..." : "Sincronizar usuarios"}
-          </button>
-          <p className="text-xs text-slate-500 mt-2">Si el login sigue fallando:</p>
-          <button
-            onClick={fixPasswords}
-            disabled={fixingPasswords}
-            className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg text-sm hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <RefreshCw className={`w-4 h-4 ${fixingPasswords ? "animate-spin" : ""}`} />
-            {fixingPasswords ? "Arreglando..." : "Forzar restablecer contraseñas"}
+            {syncingUsers ? "Creando..." : "Crear accesos que falten"}
           </button>
         </div>
       )}
