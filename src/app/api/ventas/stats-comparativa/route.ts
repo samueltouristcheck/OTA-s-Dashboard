@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
     if (!result) {
       return NextResponse.json({ error: "comparativa debe ser interanual o intermensual" }, { status: 400 });
     }
-    return NextResponse.json(result);
+    return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "Error al obtener comparativa" }, { status: 500 });

@@ -20,8 +20,9 @@ export default function ClientesPage() {
 
   useEffect(() => {
     if (!token) return;
-    fetch("/api/sheets/clientes", {
+    fetch("/api/clientes", {
       headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
     })
       .then((r) => r.json())
       .then((data) => {

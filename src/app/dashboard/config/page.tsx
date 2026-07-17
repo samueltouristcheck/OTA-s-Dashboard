@@ -1,11 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { RefreshCw, FileSpreadsheet, Upload, Users, Image, KeyRound } from "lucide-react";
+import { RefreshCw, Upload, Users, Image, KeyRound } from "lucide-react";
 
 export default function ConfigPage() {
-  const [status, setStatus] = useState<{ configured: boolean; sheetId: string | null; tabName: string | null } | null>(null);
-  const [syncing, setSyncing] = useState(false);
   const [syncingUsers, setSyncingUsers] = useState(false);
   const [fixingPasswords, setFixingPasswords] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -24,16 +22,6 @@ export default function ConfigPage() {
   const isSuperAdmin = ["Alexandra", "Samuel"].includes(user?.username || "");
 
   useEffect(() => {
-    if (!token || !isAdmin) return;
-    fetch("/api/sheets/status", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
-      .then(setStatus)
-      .catch(() => setStatus({ configured: false, sheetId: null, tabName: null }));
-  }, [token, isAdmin]);
-
-  useEffect(() => {
     if (!token || !user?.clienteId) return;
     fetch("/api/config/logo", { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
@@ -41,24 +29,6 @@ export default function ConfigPage() {
       .catch(() => {});
   }, [token, user?.clienteId]);
 
-  async function syncSheets() {
-    if (!token) return;
-    setSyncing(true);
-    setMessage(null);
-    try {
-      const res = await fetch("/api/sheets/sync", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error");
-      setMessage({ type: "ok", text: data.message });
-    } catch (e) {
-      setMessage({ type: "error", text: e instanceof Error ? e.message : "Error al sincronizar" });
-    } finally {
-      setSyncing(false);
-    }
-  }
 
   async function syncClientes() {
     if (!token) return;
@@ -417,40 +387,6 @@ export default function ConfigPage() {
   return (
     <div className="space-y-6 max-w-2xl">
       <h1 className="text-2xl font-semibold text-slate-800">Configuración</h1>
-
-      <div className="p-6 bg-white rounded-xl border border-slate-200 space-y-4">
-        <h2 className="font-medium text-slate-800 flex items-center gap-2">
-          <FileSpreadsheet className="w-5 h-5" />
-          Google Sheets
-        </h2>
-        <p className="text-sm text-slate-600">
-          Conecta tu hoja de cálculo para importar ventas automáticamente. La primera fila debe ser la cabecera con: Cliente, OTA, Tipo de Entrada, Mes respuesta, Número de entradas, Producto, Año.
-        </p>
-        {status && (
-          <div className="text-sm">
-            {status.configured ? (
-              <p className="text-emerald-600 mb-2">
-                ✓ Conectado a Google Sheets
-                {status.tabName && (
-                  <span className="text-slate-500 ml-1">(pestaña: {status.tabName})</span>
-                )}
-              </p>
-            ) : (
-              <p className="text-amber-600 mb-2">
-                Configura GOOGLE_SHEETS_ID y las credenciales en .env. Ver README.
-              </p>
-            )}
-            <button
-              onClick={syncSheets}
-              disabled={!status.configured || syncing}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <RefreshCw className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} />
-              {syncing ? "Sincronizando..." : "Sincronizar ahora"}
-            </button>
-          </div>
-        )}
-      </div>
 
       {isSuperAdmin && (
         <div className="p-6 bg-white rounded-xl border border-slate-200 space-y-4">

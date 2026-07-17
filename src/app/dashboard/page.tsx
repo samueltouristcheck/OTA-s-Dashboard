@@ -75,15 +75,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!token) return;
-    fetch("/api/sheets/clientes", { headers: { Authorization: `Bearer ${token}` } })
+    fetch("/api/clientes", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject(r)))
       .then((data) => setClientes(Array.isArray(data) ? data : []))
-      .catch(() =>
-        fetch("/api/clientes", { headers: { Authorization: `Bearer ${token}` } })
-          .then((r) => r.json())
-          .then((data) => setClientes(Array.isArray(data) ? data : []))
-          .catch(() => setClientes([]))
-      );
+      .catch(() => setClientes([]));
   }, [token]);
 
   useEffect(() => {
@@ -97,7 +92,7 @@ export default function DashboardPage() {
     if (clienteId && isAdmin) params.set("clienteId", clienteId);
 
     const headers = { Authorization: `Bearer ${token}` };
-    fetch(`/api/sheets/stats?${params}`, { headers })
+    fetch(`/api/ventas/stats?${params}`, { headers, cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject(r)))
       .then((s) => {
         const { filterOptions, ...statsData } = s || {};
@@ -109,20 +104,6 @@ export default function DashboardPage() {
         if (filterOptions?.meses?.length) setMesesOpt(filterOptions.meses);
         if (filterOptions?.productos?.length) setProductos(filterOptions.productos);
       })
-      .catch(() =>
-        fetch(`/api/ventas/stats?${params}`, { headers })
-          .then((r) => r.json())
-          .then((s) => {
-            const { filterOptions, ...statsData } = s || {};
-            const data = s?.total !== undefined ? statsData : { total: 0, porMes: {}, porOta: {}, porTipo: {}, porProducto: {}, porAño: {} };
-            setStats(data);
-            if (filterOptions?.tipos?.length) setTipos(filterOptions.tipos);
-            if (filterOptions?.otas?.length) setOtas(filterOptions.otas);
-            if (filterOptions?.años?.length) setAñosOpt(filterOptions.años);
-            if (filterOptions?.meses?.length) setMesesOpt(filterOptions.meses);
-            if (filterOptions?.productos?.length) setProductos(filterOptions.productos);
-          })
-      )
       .catch(() => setStats({ total: 0, porMes: {}, porOta: {}, porTipo: {}, porProducto: {}, porAño: {} }));
   }, [token, año, mes, ota, tipoEntrada, producto, clienteId, isAdmin]);
 
@@ -137,14 +118,9 @@ export default function DashboardPage() {
     if (clienteId && isAdmin) params.set("clienteId", clienteId);
 
     const headers = { Authorization: `Bearer ${token}` };
-    fetch(`/api/sheets/data?${params}`, { headers })
+    fetch(`/api/ventas?${params}`, { headers, cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject(r)))
       .then((v) => setVentas(Array.isArray(v) ? v : []))
-      .catch(() =>
-        fetch(`/api/ventas?${params}`, { headers })
-          .then((r) => r.json())
-          .then((v) => setVentas(Array.isArray(v) ? v : []))
-      )
       .catch(() => setVentas([]));
   }, [token, tableAño, tableMes, tableOta, tableTipo, tableProducto, clienteId, isAdmin]);
 
@@ -163,15 +139,10 @@ export default function DashboardPage() {
     if (clienteId && isAdmin) params.set("clienteId", clienteId);
 
     const headers = { Authorization: `Bearer ${token}` };
-    fetch(`/api/sheets/stats-comparativa?${params}`, { headers })
+    fetch(`/api/ventas/stats-comparativa?${params}`, { headers, cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject(r)))
       .then((d) => setComparativaData(d.tipo ? d : null))
-      .catch(() =>
-        fetch(`/api/ventas/stats-comparativa?${params}`, { headers })
-          .then((r) => r.json())
-          .then((d) => setComparativaData(d.tipo ? d : null))
-          .catch(() => setComparativaData(null))
-      );
+      .catch(() => setComparativaData(null));
   }, [token, comparativa, año, mes, ota, tipoEntrada, producto, clienteId, isAdmin]);
 
   if (!stats) {

@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     const cliente = await resolveClienteFilter(payload, searchParams.get("clienteId"));
 
     if (cliente.denyAll) {
-      return NextResponse.json(computeStats([], filters));
+      return NextResponse.json(computeStats([], filters), { headers: { "Cache-Control": "no-store" } });
     }
 
     // Filtrem per client a la consulta i la resta en memòria, igual que la font de Sheets.
@@ -36,7 +36,9 @@ export async function GET(req: NextRequest) {
       producto: v.producto,
     }));
 
-    return NextResponse.json(computeStats(statsRows, filters));
+    // Sense això la resposta es queda a la memòria cau i el dashboard ensenya números vells després
+    // d'entrar dades noves.
+    return NextResponse.json(computeStats(statsRows, filters), { headers: { "Cache-Control": "no-store" } });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "Error al obtener stats" }, { status: 500 });

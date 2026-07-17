@@ -15,12 +15,13 @@ type User = {
 
 type Cliente = { id: string; nombre: string };
 
-type ClienteSheet = { id: string; nombre: string; username: string; password: string };
+/** Un client de la base de dades amb les credencials que se li posarien per defecte. */
+type ClienteConAcceso = { id: string; nombre: string; username: string; password: string };
 
 export default function UsuariosPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [clientesSheet, setClientesSheet] = useState<ClienteSheet[]>([]);
+  const [clientesConAcceso, setClientesConAcceso] = useState<ClienteConAcceso[]>([]);
   const [loading, setLoading] = useState(true);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -42,15 +43,14 @@ export default function UsuariosPage() {
   function load() {
     if (!token) return Promise.resolve();
     return Promise.all([
-      fetch("/api/users", { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()),
-      fetch("/api/clientes", { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()),
-      fetch("/api/sheets/clientes", { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()),
+      fetch("/api/users", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }).then((r) => r.json()),
+      fetch("/api/clientes", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }).then((r) => r.json()),
     ])
-      .then(([u, c, cs]) => {
+      .then(([u, c]) => {
         setUsers(Array.isArray(u) ? u : []);
-        setClientes(Array.isArray(c) ? c : []);
-        const list = Array.isArray(cs) ? cs : [];
-        setClientesSheet(list.map((x: { id: string; nombre: string }) => ({ ...x, username: x.nombre, password: "cliente123" })));
+        const list: Cliente[] = Array.isArray(c) ? c : [];
+        setClientes(list);
+        setClientesConAcceso(list.map((x) => ({ ...x, username: x.nombre, password: "cliente123" })));
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -285,7 +285,7 @@ export default function UsuariosPage() {
             </tr>
           </thead>
           <tbody>
-            {clientesSheet.map((c, i) => {
+            {clientesConAcceso.map((c, i) => {
               const matchedUser = users.find((u) =>
                 (u.clienteNombre?.toLowerCase() === c.nombre.toLowerCase()) ||
                 (u.username?.toLowerCase() === c.nombre.toLowerCase())
@@ -380,8 +380,8 @@ export default function UsuariosPage() {
             })}
           </tbody>
         </table>
-        {clientesSheet.length === 0 && (
-          <div className="p-8 text-center text-slate-500">No hay clientes en Google Sheets.</div>
+        {clientesConAcceso.length === 0 && (
+          <div className="p-8 text-center text-slate-500">No hay clientes.</div>
         )}
       </div>
     </div>

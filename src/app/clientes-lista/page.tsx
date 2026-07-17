@@ -8,7 +8,13 @@ export default function ClientesListaPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/clientes-lista")
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setError("Entra en el dashboard para ver esta lista.");
+      setLoading(false);
+      return;
+    }
+    fetch("/api/clientes-lista", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
         if (data.error) setError(data.error);
@@ -23,8 +29,8 @@ export default function ClientesListaPage() {
 
   return (
     <div className="p-8 max-w-2xl">
-      <h1 className="text-2xl font-semibold mb-4">Clientes en Google Sheets</h1>
-      <p className="text-slate-600 mb-6">Columna &quot;Cliente&quot; — {clientes.length} clientes únicos</p>
+      <h1 className="text-2xl font-semibold mb-4">Clientes</h1>
+      <p className="text-slate-600 mb-6">{clientes.length} clientes con perfil</p>
       <ol className="list-decimal list-inside space-y-2 font-mono text-sm">
         {clientes.map((c, i) => (
           <li key={i} className="py-1">

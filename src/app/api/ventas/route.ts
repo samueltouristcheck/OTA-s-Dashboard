@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     const filters = parseStatsFilters(searchParams);
     const cliente = await resolveClienteFilter(payload, searchParams.get("clienteId"));
 
-    if (cliente.denyAll) return NextResponse.json([]);
+    if (cliente.denyAll) return NextResponse.json([], { headers: { "Cache-Control": "no-store" } });
 
     const list = await fetchVentasRows(cliente.clienteId);
 
