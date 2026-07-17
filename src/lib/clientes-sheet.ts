@@ -39,6 +39,8 @@ const ALIAS_CANONIC: Record<string, string> = {
   "museu egipci": "Museu Egipci",
   // A la fulla conviuen "VINSEUM" i "Vinseum": són el mateix client.
   vinseum: "Vinseum",
+  // Mateixa sigla (BNAU): al 2024 se'n deia Bus Nàutic i del 2025 endavant, Alsa.
+  "bus nautic": "Alsa",
 };
 
 /** Nom canònic del client. Retorna null només si el nom és buit. */
