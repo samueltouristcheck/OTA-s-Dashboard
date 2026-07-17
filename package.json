@@ -18,6 +18,7 @@
     "import:csv": "tsx scripts/import-csv.ts",
     "clientes:list": "tsx scripts/listar-clientes.ts",
     "backup:ventas": "tsx scripts/backup-ventas.ts",
+    "migrar:ventas": "tsx scripts/migrar-ventas.ts",
     "test:stats": "tsx scripts/test-stats.ts"
   },
   "dependencies": {

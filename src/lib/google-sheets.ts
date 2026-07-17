@@ -349,10 +349,8 @@ function parseRow(row: string[], indices: Record<string, number>, headers: strin
   ];
 }
 
-export async function fetchSheetData(
-  sheetId: string,
-  tabName?: string
-): Promise<SheetRow[]> {
+/** Files crues d'una pestanya, amb la capçalera a la posició 0. La usa també la migració. */
+export async function fetchRawRows(sheetId: string, tabName?: string): Promise<string[][]> {
   const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
   const credentialsJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
 
@@ -393,8 +391,12 @@ export async function fetchSheetData(
     range,
   });
 
-  const rows = response.data.values as string[][];
-  if (!rows?.length) return [];
+  return (response.data.values as string[][]) ?? [];
+}
+
+export async function fetchSheetData(sheetId: string, tabName?: string): Promise<SheetRow[]> {
+  const rows = await fetchRawRows(sheetId, tabName);
+  if (!rows.length) return [];
 
   const headers = rows[0];
   const indices = findColumnIndex(headers);

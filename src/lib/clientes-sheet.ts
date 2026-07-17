@@ -4,7 +4,7 @@
  */
 
 /** Clau de comparació: sense majúscules, accents ni espais als extrems. */
-function normKey(s: string): string {
+export function normKey(s: string): string {
   return s
     .trim()
     .toLowerCase()
