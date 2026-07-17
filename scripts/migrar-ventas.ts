@@ -10,7 +10,7 @@
  *   npm run migrar:ventas -- --prova  -- no escriu res, només informa
  */
 import "dotenv/config";
-import { fetchRawRows } from "../src/lib/google-sheets";
+import { fetchRawRows, fetchSheetData } from "../src/lib/google-sheets";
 import { canonicalitzaNomClient, clientSensePerfil, normKey } from "../src/lib/clientes-sheet";
 import { MES_ORDER } from "../src/lib/stats";
 import { supabase } from "../src/lib/supabase";
@@ -201,10 +201,85 @@ async function migraAny(full: (typeof FULLS)[0], prova: boolean) {
   console.log("");
 }
 
+/**
+ * Importa un any des del full de respostes en comptes dels Excels anuals.
+ *
+ * Fa falta per al 2023: no hi ha cap "Ventas OTAs 2023", o sigui que el full de respostes n'és l'única
+ * font. Ull: aquest lector descarta els clients sense perfil, així que d'Alsa i companyia no en tindrem
+ * el 2023. Com que tampoc no es veuen enlloc, tant se val.
+ */
+async function migraDesDeRespostes(any: number, prova: boolean) {
+  const sheetId = process.env.GOOGLE_SHEETS_ID;
+  if (!sheetId) throw new Error("Falta GOOGLE_SHEETS_ID al .env");
+
+  console.log(`\n=== ${any} (des del full de respostes) ===`);
+  const totes = await fetchSheetData(sheetId, process.env.GOOGLE_SHEETS_TAB || undefined);
+  const files = totes.filter((r) => r.año === any && r.numeroEntradas > 0);
+
+  const agrupat = new Map<string, { nom: string; fila: Omit<FilaVenda, "clienteId"> }>();
+  let sumades = 0;
+  for (const r of files) {
+    const nom = canonicalitzaNomClient(r.cliente);
+    if (!nom) continue;
+    const mes = normalitzaMes(r.mes);
+    if (!mes) continue;
+    const fila = {
+      ota: r.ota.trim(),
+      tipoEntrada: r.tipoEntrada.trim() || "General",
+      mes,
+      ano: any,
+      numeroEntradas: r.numeroEntradas,
+      producto: r.producto.trim() || "General",
+    };
+    const clau = [nom, fila.ota, fila.tipoEntrada, fila.producto, fila.mes].join(" | ");
+    const ja = agrupat.get(clau);
+    if (ja) {
+      ja.fila.numeroEntradas += r.numeroEntradas;
+      sumades++;
+    } else agrupat.set(clau, { nom, fila });
+  }
+
+  const noms = [...new Set([...agrupat.values()].map((v) => v.nom))].sort();
+  const total = [...agrupat.values()].reduce((s, v) => s + v.fila.numeroEntradas, 0);
+  console.log(`  Files del ${any}: ${files.length}   sumades: ${sumades}`);
+  console.log(`  Combinacions a escriure: ${agrupat.size}   Clients: ${noms.length}   Total d'entrades: ${total}`);
+
+  if (prova) {
+    console.log("  [prova] no s'escriu res.");
+    return;
+  }
+
+  const idPerNom = new Map<string, string>();
+  for (const nom of noms) idPerNom.set(nom, await upsertClient(nom, null));
+
+  const aEscriure: FilaVenda[] = [...agrupat.values()].map((v) => ({ clienteId: idPerNom.get(v.nom)!, ...v.fila }));
+  const LOT = 500;
+  for (let i = 0; i < aEscriure.length; i += LOT) {
+    const { error } = await supabase
+      .from("Venta")
+      .upsert(aEscriure.slice(i, i + LOT), { onConflict: "clienteId,ota,tipoEntrada,producto,mes,ano" });
+    if (error) throw error;
+    process.stdout.write(`\r  Escrites: ${Math.min(i + LOT, aEscriure.length)}/${aEscriure.length}`);
+  }
+  console.log("");
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const prova = args.includes("--prova");
   const anyArg = args.find((a) => a.startsWith("--any="))?.split("=")[1];
+
+  // El 2023 no té Excel propi: només és al full de respostes.
+  if (args.includes("--respostes")) {
+    if (!anyArg) {
+      console.error("Amb --respostes cal dir l'any: --respostes --any=2023");
+      process.exit(1);
+    }
+    await migraDesDeRespostes(parseInt(anyArg, 10), prova);
+    const { count } = await supabase.from("Venta").select("*", { count: "exact", head: true });
+    console.log(`\nTotal de files a Venta: ${count}`);
+    return;
+  }
 
   const fulls = anyArg ? FULLS.filter((f) => String(f.any) === anyArg) : FULLS;
   if (!fulls.length) {
