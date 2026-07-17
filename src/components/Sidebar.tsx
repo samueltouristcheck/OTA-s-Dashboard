@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Settings, Users, User, UserCog, CalendarPlus, Activity, Mail } from "lucide-react";
+import { LayoutDashboard, Settings, Users, User, UserCog, CalendarPlus, Activity, Mail, ClipboardList } from "lucide-react";
 
 const SUPER_ADMINS = ["Alexandra", "Samuel"];
 
@@ -11,6 +11,7 @@ const nav = [
   { href: "/dashboard/config", label: "Configuración", icon: Settings },
   { href: "/dashboard", label: "Superadmin", icon: LayoutDashboard, adminOnly: true },
   { href: "/dashboard/datos-mensuales", label: "Datos mensuales", icon: CalendarPlus, adminOnly: true },
+  { href: "/dashboard/panel", label: "Panel de clientes", icon: ClipboardList, adminOnly: true },
   { href: "/dashboard/clientes", label: "Clientes", icon: Users, adminOnly: true },
   { href: "/dashboard/usuarios", label: "Usuarios", icon: UserCog, superAdminOnly: true },
   { href: "/dashboard/correos", label: "Correos", icon: Mail, superAdminOnly: true },
