@@ -1,66 +1,23 @@
-import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
-import { verifyToken } from "@/lib/auth";
-import { fetchSheetData } from "@/lib/google-sheets";
+import { NextResponse } from "next/server";
 
-export async function POST(req: NextRequest) {
-  try {
-    const authHeader = req.headers.get("authorization");
-    const token = authHeader?.replace("Bearer ", "");
-    const payload = token ? verifyToken(token) : null;
-
-    if (!payload || payload.role !== "admin") {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
-
-    const sheetId = process.env.GOOGLE_SHEETS_ID;
-    if (!sheetId) {
-      return NextResponse.json(
-        { error: "GOOGLE_SHEETS_ID no configurado en .env" },
-        { status: 400 }
-      );
-    }
-
-    const tabName = process.env.GOOGLE_SHEETS_TAB || undefined;
-    const rows = await fetchSheetData(sheetId, tabName);
-    const clientesMap = new Map<string, string>();
-    let imported = 0;
-
-    for (const row of rows) {
-      let clienteId = clientesMap.get(row.cliente);
-      if (!clienteId) {
-        const { data: existing } = await supabase.from("Cliente").select("id").eq("nombre", row.cliente).single();
-        if (existing) {
-          clienteId = existing.id;
-        } else {
-          const { data: created, error } = await supabase.from("Cliente").insert({ nombre: row.cliente }).select("id").single();
-          if (error) throw error;
-          clienteId = created!.id;
-        }
-        if (clienteId) clientesMap.set(row.cliente, clienteId);
-      }
-
-      if (!clienteId) continue;
-      const { error } = await supabase.from("Venta").insert({
-        clienteId,
-        ota: row.ota,
-        tipoEntrada: row.tipoEntrada,
-        mes: row.mes,
-        ano: row.año,
-        numeroEntradas: row.numeroEntradas,
-        producto: row.producto,
-      });
-      if (error) throw error;
-      imported++;
-    }
-
-    return NextResponse.json({
-      imported,
-      message: `Importadas ${imported} ventas desde Google Sheets`,
-    });
-  } catch (e) {
-    console.error(e);
-    const msg = e instanceof Error ? e.message : "Error al sincronizar";
-    return NextResponse.json({ error: msg }, { status: 500 });
-  }
+/**
+ * DESACTIVADA. Importaba el full de Google a la taula Venta.
+ *
+ * Des que la base de dades és la font de les vendes (l'Alexandra les entra a "Datos mensuales"),
+ * executar això sobreescriuria les dades bones amb les del full, que ja no s'actualitza. A més, mai no
+ * va tenir clau única ni dedupe: executar-la sis vegades va deixar sis còpies de cada venda i un total
+ * inflat de 437.299 entrades quan de veritat eren unes 76.000.
+ *
+ * La lectura del full segueix disponible (/api/sheets/data, /api/sheets/stats) i el comparador
+ * `npm run comparar` enfronta les dues fonts quan calgui. Per tornar a portar dades del full a la base
+ * de dades hi ha `npm run migrar:ventas`, que sí que és idempotent.
+ */
+export async function POST() {
+  return NextResponse.json(
+    {
+      error:
+        "Esta sincronización está desactivada: las ventas ahora viven en la base de datos y esto las sobrescribiría con la hoja antigua. Para importar desde los Excels usa `npm run migrar:ventas`.",
+    },
+    { status: 410 }
+  );
 }
