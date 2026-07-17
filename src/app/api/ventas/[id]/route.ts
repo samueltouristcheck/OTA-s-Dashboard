@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { verifyToken } from "@/lib/auth";
+import { esIdSinteticDeSheets } from "@/lib/clientes-sheet";
 
 export async function PUT(
   req: NextRequest,
@@ -18,8 +19,8 @@ export async function PUT(
     const { clienteId, ota, tipoEntrada, mes, ano, numeroEntradas, producto } = body;
     const updates: Record<string, unknown> = {};
     if (clienteId != null) {
-      // Els ids de /api/sheets/clientes són sintètics: si s'escriuen, la venda queda orfe.
-      if (String(clienteId).startsWith("cliente-")) {
+      // Els ids sintètics de /api/sheets/clientes deixarien la venda orfe.
+      if (esIdSinteticDeSheets(clienteId)) {
         return NextResponse.json({ error: "Cliente no válido" }, { status: 400 });
       }
       updates.clienteId = clienteId;

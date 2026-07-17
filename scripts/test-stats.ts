@@ -1,4 +1,5 @@
 import { computeStats, computeComparativa, parseStatsFilters, type StatsRow } from "../src/lib/stats";
+import { esIdSinteticDeSheets } from "../src/lib/clientes-sheet";
 
 const rows: StatsRow[] = [
   { ota: "Fever", tipoEntrada: "General", mes: "06. Junio", año: 2026, numeroEntradas: 5, producto: "Vino catalán" },
@@ -37,6 +38,14 @@ check("opcions de filtre completes", s.filterOptions.años, [2026, 2025, 2024]);
 const c = computeComparativa(rows, parseStatsFilters(q("año=2025")), "interanual");
 check("interanual filtra els anys", c && c.tipo === "interanual" ? c.años : null, [2025]);
 check("comparativa invàlida", computeComparativa(rows, parseStatsFilters(q("")), "cap"), null);
+
+// Ids sintètics de Sheets contra ids reals: "cliente-golondrinas" i "cliente-mapfre" són clients de
+// debò a la base de dades i no s'han de confondre amb els "cliente-0" que genera /api/sheets/clientes.
+check("cliente-0 es sintetic", esIdSinteticDeSheets("cliente-0"), true);
+check("cliente-12 es sintetic", esIdSinteticDeSheets("cliente-12"), true);
+check("cliente-golondrinas es REAL", esIdSinteticDeSheets("cliente-golondrinas"), false);
+check("cliente-mapfre es REAL", esIdSinteticDeSheets("cliente-mapfre"), false);
+check("un uuid es real", esIdSinteticDeSheets("5b642469-79df-4b53-8e1e-238c3d039b72"), false);
 
 console.log(fails === 0 ? "\nTOT OK" : `\n${fails} FALLADES`);
 process.exit(fails === 0 ? 0 : 1);

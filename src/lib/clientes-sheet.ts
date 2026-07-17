@@ -43,6 +43,15 @@ const ALIAS_CANONIC: Record<string, string> = {
   "bus nautic": "Alsa",
 };
 
+/**
+ * Ids sintètics de /api/sheets/clientes: es generen com a `cliente-${índex}` i no existeixen a la base
+ * de dades. El patró ha de ser numèric: hi ha clients reals amb ids com "cliente-golondrinas" i
+ * "cliente-mapfre" que sí que són vàlids.
+ */
+export function esIdSinteticDeSheets(value: string): boolean {
+  return /^cliente-\d+$/.test(String(value).trim());
+}
+
 /** Nom canònic del client. Retorna null només si el nom és buit. */
 export function canonicalitzaNomClient(cliente: string): string | null {
   const t = cliente.trim();

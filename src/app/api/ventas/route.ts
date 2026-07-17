@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { verifyToken } from "@/lib/auth";
 import { resolveClienteFilter } from "@/lib/ventas-cliente";
+import { esIdSinteticDeSheets } from "@/lib/clientes-sheet";
 import { fetchVentasRows } from "@/lib/ventas-db";
 import { applyStatsFilters, MES_ORDER, parseStatsFilters, type StatsRow } from "@/lib/stats";
 
@@ -72,8 +73,7 @@ export async function POST(req: NextRequest) {
     if (!clienteId || !mes || numeroEntradas == null) {
       return NextResponse.json({ error: "Cliente, mes y número de entradas requeridos" }, { status: 400 });
     }
-    // Els ids sintètics de /api/sheets/clientes no existeixen a la base de dades.
-    if (String(clienteId).startsWith("cliente-")) {
+    if (esIdSinteticDeSheets(clienteId)) {
       return NextResponse.json({ error: "Cliente no válido" }, { status: 400 });
     }
     const anoNum = parseInt(String(ano || new Date().getFullYear()), 10);

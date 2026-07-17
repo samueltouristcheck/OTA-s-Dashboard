@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import type { TokenPayload } from "@/lib/auth";
-import { normalitzaClientSheet } from "@/lib/clientes-sheet";
+import { esIdSinteticDeSheets, normalitzaClientSheet } from "@/lib/clientes-sheet";
 
 /**
  * A quin client s'han de restringir les vendes.
@@ -13,14 +13,13 @@ export type ClienteFilter = { clienteId: string | null; denyAll: boolean };
 
 /**
  * El paràmetre `clienteId` de la URL pot ser tres coses diferents segons qui el generi: un id real de la
- * taula Cliente, un nom de client (vista-cliente/[nombre]) o un id fals "cliente-N" de /api/sheets/clientes.
+ * taula Cliente, un nom de client (vista-cliente/[nombre]) o un id sintètic de /api/sheets/clientes.
  * Retorna l'id real, o null si no es pot resoldre.
  */
 async function resolveClienteId(value: string): Promise<string | null> {
   const v = value.trim();
   if (!v) return null;
-  // Els ids de /api/sheets/clientes són sintètics i no existeixen a la base de dades.
-  if (v.startsWith("cliente-")) return null;
+  if (esIdSinteticDeSheets(v)) return null;
 
   const canonico = normalitzaClientSheet(v) ?? v;
   const { data: porNombre } = await supabase
