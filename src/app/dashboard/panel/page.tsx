@@ -42,6 +42,24 @@ const CAMPOS = [
   { key: "info", label: "Info", ancho: "min-w-[120px]" },
 ] as const;
 
+/**
+ * Poblacions de la fulla HOME de l'Excel. Són només suggeriments: es pot escriure qualsevol cosa, però
+ * així no acaben conviscudes "Barcelona" i "barcelona" com va passar amb VINSEUM/Vinseum.
+ */
+const POBLACIONES = [
+  "Barcelona",
+  "Manresa",
+  "Sant Cugat del Vallès",
+  "Girona",
+  "Vilafranca del Penedès",
+  "Aguilar de Segarra",
+  "Madrid",
+  "Tarragona",
+  "Ibiza",
+];
+
+const SIN_REGION = "(sin región)";
+
 export default function PanelPage() {
   const [clientes, setClientes] = useState<ClientePanel[]>([]);
   const [ano, setAno] = useState(new Date().getFullYear());
@@ -51,6 +69,7 @@ export default function PanelPage() {
   const [nuevoNombre, setNuevoNombre] = useState("");
   const [nuevoCodigo, setNuevoCodigo] = useState("");
   const [creando, setCreando] = useState(false);
+  const [region, setRegion] = useState("");
 
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "{}") : null;
@@ -85,16 +104,34 @@ export default function PanelPage() {
     return [actual + 1, actual, actual - 1, actual - 2];
   }, []);
 
+  /** Regions que tenen algun client, més "(sin región)" si n'hi ha algun per omplir. */
+  const regiones = useMemo(() => {
+    const conRegion = [...new Set(clientes.map((c) => c.poblacion?.trim()).filter(Boolean) as string[])].sort();
+    const faltan = clientes.some((c) => !c.poblacion?.trim());
+    return faltan ? [...conRegion, SIN_REGION] : conRegion;
+  }, [clientes]);
+
+  const visibles = useMemo(() => {
+    if (!region) return clientes;
+    if (region === SIN_REGION) return clientes.filter((c) => !c.poblacion?.trim());
+    return clientes.filter((c) => c.poblacion?.trim() === region);
+  }, [clientes, region]);
+
   async function guardarCampo(clienteId: string, campo: string, valor: string) {
+    const limpio = valor.trim();
+    // Ho apliquem també a la llista de la pantalla: si no, una regió nova no sortiria al filtre fins a
+    // recarregar la pàgina.
+    setClientes((prev) => prev.map((c) => (c.id === clienteId ? { ...c, [campo]: limpio || null } : c)));
     try {
       const res = await fetch("/api/panel", {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ clienteId, campo, valor }),
+        body: JSON.stringify({ clienteId, campo, valor: limpio }),
       });
       if (!res.ok) throw new Error((await res.json()).error || "Error");
     } catch (e) {
       setMessage({ type: "error", text: e instanceof Error ? e.message : "Error al guardar" });
+      cargar(ano);
     }
   }
 
@@ -177,6 +214,19 @@ export default function PanelPage() {
             {nuevoAbierto ? "Cancelar" : "Añadir cliente"}
           </button>
           <select
+            value={region}
+            onChange={(e) => setRegion(e.target.value)}
+            className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white"
+            title="Filtrar por región"
+          >
+            <option value="">Todas las regiones</option>
+            {regiones.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
+          <select
             value={ano}
             onChange={(e) => setAno(parseInt(e.target.value, 10))}
             className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white"
@@ -233,6 +283,15 @@ export default function PanelPage() {
         </div>
       )}
 
+      {/* Suggeriments del camp Población: les poblacions de la fulla HOME, més les que ja s'hagin escrit. */}
+      <datalist id="poblaciones">
+        {[...new Set([...POBLACIONES, ...clientes.map((c) => c.poblacion?.trim()).filter(Boolean) as string[]])]
+          .sort()
+          .map((p) => (
+            <option key={p} value={p} />
+          ))}
+      </datalist>
+
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm border-collapse">
@@ -276,14 +335,14 @@ export default function PanelPage() {
                     Cargando...
                   </td>
                 </tr>
-              ) : clientes.length === 0 ? (
+              ) : visibles.length === 0 ? (
                 <tr>
                   <td colSpan={30} className="px-4 py-8 text-center text-slate-500">
-                    No hay clientes.
+                    {clientes.length ? `Ningún cliente en "${region}".` : "No hay clientes."}
                   </td>
                 </tr>
               ) : (
-                clientes.map((c) => (
+                visibles.map((c) => (
                   <tr key={c.id} className="border-b border-slate-100 hover:bg-slate-50/50">
                     <td className="px-3 py-1.5 font-medium text-slate-800 sticky left-0 bg-white">
                       {c.nombre}
@@ -293,6 +352,7 @@ export default function PanelPage() {
                       <td key={campo.key} className={`px-1 py-1 border-r border-slate-100 ${campo.ancho}`}>
                         <input
                           defaultValue={(c[campo.key] as string) ?? ""}
+                          list={campo.key === "poblacion" ? "poblaciones" : undefined}
                           onBlur={(e) => {
                             const nuevo = e.target.value;
                             if (nuevo !== ((c[campo.key] as string) ?? "")) guardarCampo(c.id, campo.key, nuevo);
