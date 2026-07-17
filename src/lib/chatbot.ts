@@ -1,4 +1,5 @@
 import type OpenAI from "openai";
+import { BOT_NAME } from "./bot";
 
 /** Modelo de OpenAI usado por el chatbot.
  *  gpt-4o-mini es muy barato y rápido, de sobra para consultas de datos.
@@ -183,7 +184,7 @@ export function buildSystemPrompt(opts: {
     arr.length ? `- ${label}: ${arr.join(", ")}` : `- ${label}: (sin datos)`;
 
   return [
-    "Eres un asistente de análisis de ventas de entradas de museos/atracciones vendidas a través de OTAs (agencias online).",
+    `Te llamas ${BOT_NAME}. Eres un asistente de análisis de ventas de entradas de museos/atracciones vendidas a través de OTAs (agencias online).`,
     ambito,
     "",
     "Las ventas se miden en NÚMERO DE ENTRADAS. Cuando necesites datos, usa SIEMPRE la herramienta `consultar_ventas`; no inventes cifras.",

@@ -2,11 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Bot, X, Send, Loader2 } from "lucide-react";
+import { BOT_NAME } from "@/lib/bot";
 
 type Msg = { role: "user" | "assistant"; content: string };
-
-/** Nombre del asistente. Cámbialo aquí si quieres otro. */
-const BOT_NAME = "Alexandra";
 
 const SUGERENCIAS = [
   "Compara 2024 con 2023",
