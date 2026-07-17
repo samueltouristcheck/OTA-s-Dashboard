@@ -127,24 +127,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Credenciales inválidas" }, { status: 401 });
     }
 
-    let passwordOk = await bcrypt.compare(passwordTrim, user.password);
-
-    // Si falla: hash de PostgreSQL crypt() no es compatible. Aceptamos contraseña conocida y re-hasheamos.
-    if (!passwordOk && user.role === "client" && passwordTrim.toLowerCase() === "cliente123") {
-      const newHash = await bcrypt.hash("cliente123", 10);
-      await supabase.from("User").update({ password: newHash }).eq("id", user.id);
-      passwordOk = true;
-    }
-    if (!passwordOk && user.role === "admin") {
-      const adminCreds: [string, string][] = [["Alexandra", "Alexandra123"], ["Samuel", "Samuel123"]];
-      const match = adminCreds.find(([u, p]) => (user.username || "").toLowerCase() === u.toLowerCase() && passwordTrim === p);
-      if (match) {
-        const expected = match[1];
-        const newHash = await bcrypt.hash(expected, 10);
-        await supabase.from("User").update({ password: newHash }).eq("id", user.id);
-        passwordOk = true;
-      }
-    }
+    // La contraseña guardada es la única que vale.
+    //
+    // Aquí había dos atajos: si el bcrypt no cuadraba, se aceptaba igualmente "cliente123" para
+    // cualquier cliente y "Alexandra123"/"Samuel123" para los admins, y se rehasheaba. Se pusieron
+    // porque quedaban hashes de crypt() de PostgreSQL que bcryptjs no sabía leer; hoy los 19 usuarios
+    // tienen hash bcrypt, así que ya no hacen falta. Y mientras estuvieron, cambiar la contraseña no
+    // servía de nada: la vieja seguía abriendo la cuenta.
+    const passwordOk = await bcrypt.compare(passwordTrim, user.password);
 
     if (!passwordOk) {
       return NextResponse.json({ error: "Contraseña incorrecta" }, { status: 401 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ExternalLink, Plus, X } from "lucide-react";
+import { Copy, ExternalLink, Plus, X } from "lucide-react";
 
 const MESES = [
   "01. Enero",
@@ -68,8 +68,11 @@ export default function PanelPage() {
   const [nuevoAbierto, setNuevoAbierto] = useState(false);
   const [nuevoNombre, setNuevoNombre] = useState("");
   const [nuevoCodigo, setNuevoCodigo] = useState("");
+  const [nuevoEmail, setNuevoEmail] = useState("");
   const [creando, setCreando] = useState(false);
   const [region, setRegion] = useState("");
+  /** Credencials del client acabat de crear. Es mostren un cop: després la contrasenya no es torna a ensenyar aquí. */
+  const [alta, setAlta] = useState<{ nombre: string; username: string; password: string; dashboardUrl: string } | null>(null);
 
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "{}") : null;
@@ -164,25 +167,24 @@ export default function PanelPage() {
     if (!nombre) return;
     setCreando(true);
     setMessage(null);
+    setAlta(null);
     try {
-      const res = await fetch("/api/clientes", {
+      const res = await fetch("/api/clientes/alta", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ nombre, codigo: nuevoCodigo.trim() || null }),
+        body: JSON.stringify({
+          nombre,
+          codigo: nuevoCodigo.trim() || null,
+          email: nuevoEmail.trim() || null,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error al crear el cliente");
 
-      if (!data.creado) {
-        setMessage({ type: "error", text: `"${data.nombre}" ya existe.` });
-        return;
-      }
-      setMessage({
-        type: "ok",
-        text: `"${data.nombre}" creado. Ya puedes meterle ventas en Datos mensuales; para darle acceso, créale el usuario en Usuarios.`,
-      });
+      setAlta(data);
       setNuevoNombre("");
       setNuevoCodigo("");
+      setNuevoEmail("");
       setNuevoAbierto(false);
       await cargar(ano);
     } catch (e) {
@@ -263,17 +265,70 @@ export default function PanelPage() {
               className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white w-28 uppercase"
             />
           </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Email de contacto (opcional)</label>
+            <input
+              value={nuevoEmail}
+              onChange={(e) => setNuevoEmail(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && crearCliente()}
+              placeholder="info@museu.cat"
+              className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white min-w-[200px]"
+            />
+          </div>
           <button
             onClick={crearCliente}
             disabled={!nuevoNombre.trim() || creando}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
           >
-            {creando ? "Creando..." : "Crear"}
+            {creando ? "Creando..." : "Crear cliente y acceso"}
           </button>
           <p className="text-xs text-slate-500 basis-full">
-            El cliente sale en el panel y en Datos mensuales aunque no tenga ventas todavía. Para que pueda entrar al
-            dashboard, créale después el usuario en la pantalla de Usuarios.
+            Se crea todo de una vez: el cliente, su usuario y su contraseña. Aparecerá aquí, en Datos mensuales y con su
+            dashboard listo, aunque todavía no tenga ventas.
           </p>
+        </div>
+      )}
+
+      {alta && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-3">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="font-medium text-emerald-900">{alta.nombre} ya tiene acceso</p>
+              <p className="text-sm text-emerald-800 mt-0.5">
+                Apunta la contraseña ahora y pásasela al cliente. Si la pierdes, la tienes también en la pantalla de
+                Clientes.
+              </p>
+            </div>
+            <button onClick={() => setAlta(null)} className="text-emerald-700 hover:text-emerald-900" title="Cerrar">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-6 bg-white rounded-lg border border-emerald-200 px-4 py-3">
+            <div>
+              <p className="text-xs text-slate-500">Usuario</p>
+              <p className="font-mono text-sm text-slate-800">{alta.username}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500">Contraseña</p>
+              <p className="font-mono text-sm text-slate-800">{alta.password}</p>
+            </div>
+            <button
+              onClick={() => navigator.clipboard?.writeText(`Usuario: ${alta.username}\nContraseña: ${alta.password}`)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
+            >
+              <Copy className="w-3.5 h-3.5" />
+              Copiar
+            </button>
+            <a
+              href={alta.dashboardUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              Ver su dashboard
+            </a>
+          </div>
         </div>
       )}
 
