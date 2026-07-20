@@ -7,6 +7,9 @@ envíos y facturación.
 📖 **[DOCUMENTACION.md](DOCUMENTACION.md)** — cómo funciona, pantalla por pantalla, y cómo está montado
 por dentro. Empieza por ahí.
 
+🔑 **[TRASPASO.md](TRASPASO.md)** — qué cuentas y servicios hacen falta, quién es el dueño de cada uno y
+qué hacer si algo se rompe.
+
 ## Puesta en marcha
 
 ```bash
