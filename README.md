@@ -1,75 +1,44 @@
 # OTA Sales Dashboard
 
-Dashboard de ventas de entradas de museos. Visualiza ventas por OTA, tipo de entrada, mes y producto.
+Dashboard de ventas de entradas de museos vendidas a través de OTAs. Cada museo entra y ve sus ventas
+por OTA, tipo de entrada, mes y producto; internamente se meten los datos y se lleva el seguimiento de
+envíos y facturación.
 
-## Requisitos
+📖 **[DOCUMENTACION.md](DOCUMENTACION.md)** — cómo funciona, pantalla por pantalla, y cómo está montado
+por dentro. Empieza por ahí.
 
-- Node.js 18+
-- PostgreSQL
-
-## Instalación
+## Puesta en marcha
 
 ```bash
 npm install
-```
-
-Copia `.env.example` a `.env` y configura:
-
-```
-DATABASE_URL="postgresql://user:password@localhost:5432/ota_sales?schema=public"
-JWT_SECRET="tu-secreto-jwt"
-```
-
-## Base de datos
-
-```bash
-npx prisma generate
-npx prisma db push
-npx prisma db seed
-```
-
-## Ejecutar
-
-```bash
+cp .env.example .env    # y rellena los valores (ver DOCUMENTACION.md § 6)
 npm run dev
 ```
 
 Abre http://localhost:3000
 
-**Usuarios de prueba:**
-- Admin: `admin@ota.com` / `admin123`
-- Cliente: `golondrinas@ota.com` / `client123`
+Las ventas viven en Supabase (PostgreSQL). El esquema se aplica ejecutando los ficheros
+`supabase-*.sql` en el SQL Editor de Supabase; `prisma/schema.prisma` está solo como documentación del
+modelo, no se usa en tiempo de ejecución.
 
-## Google Sheets
+## Comandos
 
-1. Crea un proyecto en [Google Cloud Console](https://console.cloud.google.com)
-2. Activa la **Google Sheets API**
-3. Crea una **Service Account** y descarga el JSON
-4. Guarda el archivo como `google-credentials.json` en la raíz del proyecto (o usa `GOOGLE_SERVICE_ACCOUNT_JSON` en .env)
-5. Comparte tu hoja de Google Sheets con el email de la Service Account (permiso de editor)
-6. Añade a `.env`:
-   ```
-   GOOGLE_SHEETS_ID="1gWkTIdz00NCP1Onwn9L3_I4giNb5aeVFJzYdBb4vDSc"
-   GOOGLE_SHEETS_TAB="Respuestas de formulario 1"
-   GOOGLE_APPLICATION_CREDENTIALS="./google-credentials.json"
-   ```
-7. En **Configuración** del dashboard, pulsa "Sincronizar ahora"
-
-El ID de la hoja está en la URL: `https://docs.google.com/spreadsheets/d/ESTE_ES_EL_ID/edit`
-
-## Importar CSV
-
-Desde la terminal:
 ```bash
-npm run import:csv data/ejemplo-ventas.csv
+npm run dev              # desarrollo
+npm run build            # compilar
+npm run comparar         # comparar la hoja de Google con la base de datos
+npm run backup:ventas    # copia de seguridad de Venta y Cliente
+npm run migrar:ventas    # importar los Excels anuales (se puede repetir sin duplicar)
+npm run test:stats       # comprobaciones de la lógica de estadísticas
 ```
 
-O desde **Configuración** en el dashboard (admin).
+## Despliegue
 
-Formato CSV esperado: `Cliente,OTA,Tipo de Entrada,Mes respuesta,Número de entradas,Producto,Año`
+Vercel. Las variables de entorno están en Settings → Environment Variables; ver
+[VERCEL-CONFIG.md](VERCEL-CONFIG.md).
 
-## Estructura
+## Nota sobre Google Sheets
 
-- `/dashboard` - Dashboard con KPIs y gráficos
-- `/dashboard/filtros` - Filtros avanzados y exportar CSV
-- `/dashboard/config` - Configuración: sincronizar Google Sheets o importar CSV (solo admin)
+Hasta julio de 2026 los datos venían de una hoja de Google. **Ya no**: la fuente es la base de datos y
+los datos se meten desde el propio dashboard. La lectura de la hoja se conserva por si hace falta
+comprobar algo (`npm run comparar`), pero las rutas que escribían están desactivadas.
