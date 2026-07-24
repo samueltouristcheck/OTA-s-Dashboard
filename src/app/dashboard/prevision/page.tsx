@@ -25,6 +25,7 @@ type Prevision = {
   min: number;
   max: number;
   fiabilidad: { porcentaje: number; motivos: string[] };
+  explicacion: string[];
   historico: { año: number; entradas: number }[];
 };
 
@@ -168,6 +169,21 @@ export default function PrevisionPage() {
               )}
             </div>
           </div>
+
+          {/* Explicació de com s'ha calculat el número */}
+          {p.explicacion.length > 0 && (
+            <div className="p-6 bg-blue-50/50 rounded-xl border border-blue-100">
+              <p className="text-sm font-medium text-slate-700 mb-2">Cómo hemos calculado esto</p>
+              <ol className="space-y-1.5 text-sm text-slate-700">
+                {p.explicacion.map((e, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span className="text-blue-400 font-medium">{i + 1}.</span>
+                    <span>{e}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* Gràfic any rere any */}

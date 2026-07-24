@@ -107,6 +107,21 @@ const pInc = preveuMes(ambIncomplet, { año: 2026, mesIndex: 0 });
 check("previsió ignora l'any incomplet (~1000, no ~200)", pInc.central >= 850 && pInc.central <= 1150, true);
 check("l'any incomplet genera avís intern", !!pInc.avisoDatos, true);
 
+// Moment de l'any en curs: si va per sobre, puja la previsió; si va sospitosament baix (dades a mig
+// entrar), NO s'aplica i avisa internament.
+function ambAnyEnCurs(genAbr2026: number): VentaMensual[] {
+  const out: VentaMensual[] = [];
+  for (const año of [2024, 2025]) for (let m = 0; m < 12; m++) out.push({ mes: NOMS_MES[m], año, numeroEntradas: 1000 });
+  for (let m = 0; m < 4; m++) out.push({ mes: NOMS_MES[m], año: 2026, numeroEntradas: genAbr2026 });
+  return out;
+}
+const pMomBo = preveuMes(ambAnyEnCurs(1100), { año: 2026, mesIndex: 4 }); // +10% aquest any
+check("momentum creïble puja la previsió", pMomBo.central > 1000, true);
+const pMomMal = preveuMes(ambAnyEnCurs(200), { año: 2026, mesIndex: 4 }); // -80%: dades a mig entrar
+check("momentum sospitós NO enfonsa la previsió", pMomMal.central >= 900, true);
+check("momentum sospitós genera avís intern", !!pMomMal.avisoDatos, true);
+check("l'explicació té contingut", pMomBo.explicacion.length >= 2, true);
+
 // Helpers de calendari.
 check("caps de setmana de juliol 2026", capsDeSetmana(2026, 6), 8); // 4 dissabtes + 4 diumenges
 check("indexMes amb prefix", indexMes("07. Julio"), 6);

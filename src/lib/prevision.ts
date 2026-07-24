@@ -10,6 +10,11 @@
 
 import { MES_ORDER } from "./stats";
 
+const NOMS_MES_CURT = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+];
+
 export type VentaMensual = { mes: string; año: number; numeroEntradas: number };
 
 /** Índex 0-11 del mes ("06. Junio" o "Junio" → 5), o -1. */
@@ -142,9 +147,51 @@ export type Prevision = {
   min: number;
   max: number;
   fiabilidad: Fiabilitat;
+  /** Explicació en llenguatge planer de com s'ha arribat al número. */
+  explicacion: string[];
   /** Punts de l'històric per pintar el gràfic: total per any del mateix mes. */
   historico: { año: number; entradas: number }[];
 };
+
+type Momentum = {
+  factor: number;
+  pct: number;
+  /** L'any en curs va tan per sota que sembla que les dades encara no estan entrades. */
+  sospechoso: boolean;
+  anyEnCurs: number;
+};
+
+/**
+ * Com va l'any en curs respecte del mateix període de l'any passat (any-a-any, mateixos mesos).
+ *
+ * Només es calcula si l'any passat és **usable i immediatament anterior**: si no, dir "respecte de
+ * l'any passat" no seria cert. Es compara només amb els mesos que l'any de referència té.
+ *
+ * Si l'any en curs va per sota del 60% del mateix període, es marca `sospechoso`: gairebé sempre és que
+ * el 2026 encara no està entrat del tot, i llavors NO s'ha d'aplicar (enfonsaria la previsió).
+ */
+function momentoAnyActual(totals: Map<string, number>, usables: number[], ultimMes: number): Momentum | null {
+  const mesActual = ultimMes % 12;
+  const anyEnCurs = Math.floor(ultimMes / 12);
+  if (mesActual >= 11 || mesActual < 2) return null; // any complet, o menys de 3 mesos (poc fiable)
+  const anyRef = anyEnCurs - 1;
+  if (!usables.includes(anyRef)) return null; // l'any passat no és fiable
+
+  let actual = 0;
+  let ref = 0;
+  let mesos = 0;
+  for (let m = 0; m <= mesActual; m++) {
+    const vr = totals.get(`${anyRef}|${m}`);
+    if (vr === undefined || vr <= 0) continue;
+    actual += totals.get(`${anyEnCurs}|${m}`) || 0;
+    ref += vr;
+    mesos++;
+  }
+  if (mesos < 3 || ref <= 0) return null;
+  const rati = actual / ref;
+  const factor = Math.min(1.6, Math.max(0.6, rati));
+  return { factor, pct: Math.round((factor - 1) * 100), sospechoso: rati < 0.6, anyEnCurs };
+}
 
 type SeleccioAnys = {
   /** Anys que es poden fer servir per calcular: ni en curs ni sospitosos d'incomplets. */
@@ -218,6 +265,7 @@ export function preveuMes(
     año: objetivo.año,
     mesIndex: objetivo.mesIndex,
     mesNombre,
+    explicacion: [],
     historico: [],
   };
 
@@ -234,6 +282,7 @@ export function preveuMes(
       min: 0,
       max: 0,
       fiabilidad: { porcentaje: 0, motivos: ["sin histórico de este mes"] },
+      explicacion: [],
       hayDatos: false,
       mensaje: "No hay datos suficientes para prever este mes.",
     };
@@ -249,8 +298,22 @@ export function preveuMes(
   });
   const baseEstacional = sumaVal / sumaPes;
 
-  // Tendència interanual, només amb els anys usables (l'any en curs i els incomplets la falsejarien).
+  // "Com va aquest any": moment de l'any en curs vs el mateix període de l'any passat. Si el tenim i és
+  // creïble, mana ell (és el senyal més recent). Si va sospitosament baix (dades a mig entrar), NO
+  // l'apliquem: tirem de la tendència històrica i ho marquem a l'avís intern.
+  const momentum = momentoAnyActual(totals, usables, ultimMes);
+  const usaMomentum = momentum !== null && !momentum.sospechoso;
   const factorTendencia = tendenciaInteranual(totals, usables);
+  const factorAño = usaMomentum ? momentum!.factor : factorTendencia;
+
+  // L'avís intern ajunta els anys tancats incomplets i, si escau, l'any en curs sospitós.
+  const avisosInterns = [avisoDatos];
+  if (momentum?.sospechoso) {
+    avisosInterns.push(
+      `Las ventas de ${momentum.anyEnCurs} van muy por debajo del año pasado: probablemente falten por entrar. La previsión se ha hecho con la tendencia histórica.`
+    );
+  }
+  const avisoFinal = avisosInterns.filter(Boolean).join(" ") || undefined;
 
   // Ajust de calendari: dies forts del mes objectiu vs mitjana dels mateixos mesos històrics.
   const diesFortsObjectiu =
@@ -268,7 +331,7 @@ export function preveuMes(
     factorCalendari = Math.min(1.15, Math.max(0.85, factorCalendari));
   }
 
-  const central = Math.round(baseEstacional * factorTendencia * factorCalendari);
+  const central = Math.round(baseEstacional * factorAño * factorCalendari);
 
   // Horitzó: mesos entre l'últim mes amb dades reals i l'objectiu (com més lluny, menys fiable).
   const mesesVista = Math.max(1, objetivo.año * 12 + objetivo.mesIndex - ultimMes);
@@ -280,9 +343,28 @@ export function preveuMes(
   const min = Math.round(central * (1 - amplada));
   const max = Math.round(central * (1 + amplada));
 
+  // Explicació planera de com hem arribat al número (client-facing; res sobre dades que falten).
+  const nf = (n: number) => Math.round(n).toLocaleString("es-ES");
+  const mesCurt = NOMS_MES_CURT[objetivo.mesIndex];
+  const explicacion: string[] = [];
+  explicacion.push(`En ${mesCurt} sueles rondar las ${nf(baseEstacional)} entradas, según tus años anteriores.`);
+  if (usaMomentum) {
+    explicacion.push(
+      momentum!.pct >= 0
+        ? `Este año vas un +${momentum!.pct}% respecto al mismo periodo del año pasado, así que subimos la previsión a ese ritmo.`
+        : `Este año vas un ${momentum!.pct}% respecto al mismo periodo del año pasado, así que ajustamos la previsión a la baja.`
+    );
+  } else if (Math.abs(factorTendencia - 1) >= 0.05) {
+    const pct = Math.round((factorTendencia - 1) * 100);
+    explicacion.push(`Tu tendencia de los últimos años es de un ${pct >= 0 ? "+" : ""}${pct}%, y la aplicamos.`);
+  }
+  if (factorCalendari >= 1.02) explicacion.push(`Este ${mesCurt} cae con más findes y festivos de lo normal: pequeño empujón.`);
+  else if (factorCalendari <= 0.98) explicacion.push(`Este ${mesCurt} cae con menos findes y festivos de lo normal: puede quedar algo por debajo.`);
+  explicacion.push(`Resultado: unas ${nf(central)} entradas (entre ${nf(min)} y ${nf(max)}), con un ${fiabilidad.porcentaje}% de fiabilidad.`);
+
   return {
     hayDatos: true,
-    avisoDatos,
+    avisoDatos: avisoFinal,
     año: objetivo.año,
     mesIndex: objetivo.mesIndex,
     mesNombre,
@@ -290,6 +372,7 @@ export function preveuMes(
     min: Math.max(0, min),
     max,
     fiabilidad,
+    explicacion,
     historico: historicoMes,
   };
 }
@@ -313,11 +396,6 @@ export function mesSeguent(ventas: VentaMensual[]): { año: number; mesIndex: nu
 
 /** Venda amb OTA i producte, per poder desglossar la previsió i fer recomanacions. */
 export type VentaDetallada = VentaMensual & { ota: string; producto: string };
-
-const NOMS_MES_CURT = [
-  "enero", "febrero", "marzo", "abril", "mayo", "junio",
-  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
-];
 
 /** Mitjana d'entrades de cada mes (0-11) sobre els anys usables. */
 function mitjanaPerMes(ventas: VentaDetallada[], usables: number[]): number[] {
