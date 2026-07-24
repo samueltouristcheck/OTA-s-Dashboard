@@ -146,27 +146,43 @@ export type Prevision = {
   historico: { año: number; entradas: number }[];
 };
 
-/**
- * Detecta un any que sembla incomplet: el darrer any tancat (no el que està en curs) cau més d'un 45%
- * respecte de l'anterior. Podria ser una caiguda real de vendes, però gairebé sempre és que falta entrar
- * dades — i en tots dos casos convé mirar-s'ho abans de fiar-se de la previsió.
- */
-function detectaDadesIncompletes(totals: Map<string, number>, anys: number[], ultimMesAbs: number): string | undefined {
-  if (anys.length < 2) return undefined;
-  const ultimAny = anys[anys.length - 1];
-  // Si el darrer any encara està en curs (l'últim mes amb dades no és desembre), el saltem.
-  const enCurs = ultimMesAbs % 12 < 11 && Math.floor(ultimMesAbs / 12) === ultimAny;
-  const anysTancats = enCurs ? anys.slice(0, -1) : anys;
-  if (anysTancats.length < 2) return undefined;
+type SeleccioAnys = {
+  /** Anys que es poden fer servir per calcular: ni en curs ni sospitosos d'incomplets. */
+  usables: number[];
+  /** Anys tancats que semblen incomplets (cauen molt respecte de l'anterior). Per al panell intern. */
+  incomplets: number[];
+  /** L'any en curs (l'últim amb dades no acabat), que no s'usa per a la tendència. */
+  enCurs: number | null;
+};
 
-  const a = anysTancats[anysTancats.length - 1];
-  const previ = anysTancats[anysTancats.length - 2];
-  const totalA = totalAny(totals, a);
-  const totalPrevi = totalAny(totals, previ);
-  if (totalPrevi > 0 && totalA < totalPrevi * 0.55) {
-    return `Los datos de ${a} parecen incompletos (caen mucho respecto a ${previ}). Revisa que estén todas las ventas antes de fiarte de la previsión.`;
+/**
+ * Tria quins anys es fan servir per a la previsió.
+ *
+ * Es descarten dos tipus d'any que falsegen el càlcul cap avall:
+ *  - **En curs**: l'últim any si el seu darrer mes no és desembre (encara no ha acabat).
+ *  - **Incomplet**: un any tancat que cau més d'un 45% respecte de l'anterior. Sol ser que falten vendes
+ *    per entrar; en tot cas convé revisar-ho. Es marca per al panell de superadmin, mai per al client.
+ */
+function seleccionaAnys(totals: Map<string, number>, anys: number[], ultimMesAbs: number): SeleccioAnys {
+  const enCurs =
+    ultimMesAbs >= 0 && ultimMesAbs % 12 < 11 ? Math.floor(ultimMesAbs / 12) : null;
+
+  const tancats = anys.filter((a) => a !== enCurs);
+  const incomplets: number[] = [];
+  for (let i = 1; i < tancats.length; i++) {
+    const prev = totalAny(totals, tancats[i - 1]);
+    const cur = totalAny(totals, tancats[i]);
+    if (prev > 0 && cur < prev * 0.55) incomplets.push(tancats[i]);
   }
-  return undefined;
+
+  const usables = anys.filter((a) => a !== enCurs && !incomplets.includes(a));
+  return { usables, incomplets, enCurs };
+}
+
+function avisIncompletes(incomplets: number[]): string | undefined {
+  if (!incomplets.length) return undefined;
+  const l = incomplets.join(", ");
+  return `Los datos de ${l} parecen incompletos: la previsión se ha calculado sin ese año. Revisa que estén todas las ventas.`;
 }
 
 /**
@@ -183,18 +199,30 @@ export function preveuMes(
   const anys = [...new Set(ventas.map((v) => v.año))].filter(Boolean).sort();
   const mesNombre = MES_ORDER[objetivo.mesIndex] ?? String(objetivo.mesIndex);
 
+  // Últim mes amb dades reals (per a l'any en curs i per a l'horitzó).
+  let ultimMes = -1;
+  for (const k of totals.keys()) {
+    const [a, m] = k.split("|").map(Number);
+    ultimMes = Math.max(ultimMes, a * 12 + m);
+  }
+
+  // Descartar l'any en curs i els que semblen incomplets, que arrossegarien la previsió cap avall.
+  const { usables, incomplets } = seleccionaAnys(totals, anys, ultimMes);
+  const avisoDatos = avisIncompletes(incomplets);
+
   const base: Omit<Prevision, "central" | "min" | "max" | "fiabilidad"> & {
     central?: number;
   } = {
     hayDatos: false,
+    avisoDatos,
     año: objetivo.año,
     mesIndex: objetivo.mesIndex,
     mesNombre,
     historico: [],
   };
 
-  // Valors del mateix mes en anys anteriors a l'objectiu.
-  const historicoMes = anys
+  // Valors del mateix mes en anys usables anteriors a l'objectiu.
+  const historicoMes = usables
     .filter((a) => a < objetivo.año)
     .map((a) => ({ año: a, entradas: totals.get(`${a}|${objetivo.mesIndex}`) || 0 }))
     .filter((p) => p.entradas > 0);
@@ -221,8 +249,8 @@ export function preveuMes(
   });
   const baseEstacional = sumaVal / sumaPes;
 
-  // Tendència interanual.
-  const factorTendencia = tendenciaInteranual(totals, anys);
+  // Tendència interanual, només amb els anys usables (l'any en curs i els incomplets la falsejarien).
+  const factorTendencia = tendenciaInteranual(totals, usables);
 
   // Ajust de calendari: dies forts del mes objectiu vs mitjana dels mateixos mesos històrics.
   const diesFortsObjectiu =
@@ -243,12 +271,6 @@ export function preveuMes(
   const central = Math.round(baseEstacional * factorTendencia * factorCalendari);
 
   // Horitzó: mesos entre l'últim mes amb dades reals i l'objectiu (com més lluny, menys fiable).
-  let ultimMes = -1;
-  for (const k of totals.keys()) {
-    const [a, m] = k.split("|").map(Number);
-    const abs = a * 12 + m;
-    if (abs > ultimMes) ultimMes = abs;
-  }
   const mesesVista = Math.max(1, objetivo.año * 12 + objetivo.mesIndex - ultimMes);
 
   const fiabilidad = calculaFiabilitat(historicoMes.map((p) => p.entradas), mesesVista);
@@ -260,7 +282,7 @@ export function preveuMes(
 
   return {
     hayDatos: true,
-    avisoDatos: detectaDadesIncompletes(totals, anys, ultimMes),
+    avisoDatos,
     año: objetivo.año,
     mesIndex: objetivo.mesIndex,
     mesNombre,

@@ -98,6 +98,15 @@ check(
   { año: 2025, mesIndex: 7 }
 );
 
+// Any incomplet: es descarta del càlcul (no arrossega la previsió avall) i es marca com a avís intern.
+const ambIncomplet: VentaMensual[] = [];
+for (const año of [2023, 2024]) for (let m = 0; m < 12; m++) ambIncomplet.push({ mes: NOMS_MES[m], año, numeroEntradas: 1000 });
+// 2025 amb només un 20% de les vendes (dades a mitges).
+for (let m = 0; m < 12; m++) ambIncomplet.push({ mes: NOMS_MES[m], año: 2025, numeroEntradas: 200 });
+const pInc = preveuMes(ambIncomplet, { año: 2026, mesIndex: 0 });
+check("previsió ignora l'any incomplet (~1000, no ~200)", pInc.central >= 850 && pInc.central <= 1150, true);
+check("l'any incomplet genera avís intern", !!pInc.avisoDatos, true);
+
 // Helpers de calendari.
 check("caps de setmana de juliol 2026", capsDeSetmana(2026, 6), 8); // 4 dissabtes + 4 diumenges
 check("indexMes amb prefix", indexMes("07. Julio"), 6);
