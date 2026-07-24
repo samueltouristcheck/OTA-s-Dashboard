@@ -15,9 +15,16 @@ export default function DashboardLayout({
   const router = useRouter();
   const path = usePathname();
   const [mounted, setMounted] = useState(false);
+  const [esCliente, setEsCliente] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+    try {
+      const u = JSON.parse(localStorage.getItem("user") || "{}");
+      setEsCliente(u?.role === "client");
+    } catch {
+      setEsCliente(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -69,7 +76,8 @@ export default function DashboardLayout({
         </div>
         {children}
       </main>
-      <ChatbotWidget />
+      {/* El chatbot és l'assistent de vendes dels museus; els admins (Samuel, Alexandra) no el veuen. */}
+      {esCliente && <ChatbotWidget />}
     </div>
   );
 }
