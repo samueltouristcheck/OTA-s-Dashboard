@@ -1,5 +1,6 @@
 import { computeStats, computeComparativa, parseStatsFilters, type StatsRow } from "../src/lib/stats";
 import { esIdSinteticDeSheets } from "../src/lib/clientes-sheet";
+import { preveuMes, mesSeguent, capsDeSetmana, indexMes, type VentaMensual } from "../src/lib/prevision";
 
 const rows: StatsRow[] = [
   { ota: "Fever", tipoEntrada: "General", mes: "06. Junio", año: 2026, numeroEntradas: 5, producto: "Vino catalán" },
@@ -46,6 +47,61 @@ check("cliente-12 es sintetic", esIdSinteticDeSheets("cliente-12"), true);
 check("cliente-golondrinas es REAL", esIdSinteticDeSheets("cliente-golondrinas"), false);
 check("cliente-mapfre es REAL", esIdSinteticDeSheets("cliente-mapfre"), false);
 check("un uuid es real", esIdSinteticDeSheets("5b642469-79df-4b53-8e1e-238c3d039b72"), false);
+
+// === Previsió ===
+
+const NOMS_MES = [
+  "01. Enero", "02. Febrero", "03. Marzo", "04. Abril", "05. Mayo", "06. Junio",
+  "07. Julio", "08. Agosto", "09. Septiembre", "10. Octubre", "11. Noviembre", "12. Diciembre",
+];
+
+// Museu estable: 500 cada mes, 3 anys complets (2023-2025). Preveure el mes següent (gener 2026,
+// horitzó 1) ha de donar ~500 amb fiabilitat alta.
+const estable: VentaMensual[] = [];
+for (const año of [2023, 2024, 2025]) {
+  for (let m = 0; m < 12; m++) estable.push({ mes: NOMS_MES[m], año, numeroEntradas: 500 });
+}
+const pEstable = preveuMes(estable, { año: 2026, mesIndex: 0 });
+check("previsió estable ~500", pEstable.central >= 480 && pEstable.central <= 520, true);
+check("previsió estable té dades", pEstable.hayDatos, true);
+check("fiabilitat alta amb dades estables", pEstable.fiabilidad.porcentaje >= 70, true);
+check("rang estret quan és fiable", pEstable.max - pEstable.min < pEstable.central, true);
+
+// Tendència creixent: 100 → 200 → 300 al gener; el 2026 ha de preveure per sobre de 300.
+const creixent: VentaMensual[] = [
+  { mes: "01. Enero", año: 2023, numeroEntradas: 100 },
+  { mes: "01. Enero", año: 2024, numeroEntradas: 200 },
+  { mes: "01. Enero", año: 2025, numeroEntradas: 300 },
+];
+check("la tendència creixent puja la previsió", preveuMes(creixent, { año: 2026, mesIndex: 0 }).central > 300, true);
+
+// Un mes sense històric NO ha d'inventar cap número.
+const senseMes: VentaMensual[] = [{ mes: "01. Enero", año: 2025, numeroEntradas: 300 }];
+const pSense = preveuMes(senseMes, { año: 2026, mesIndex: 6 }); // juliol, que no té dades
+check("sense històric: no hi ha dades", pSense.hayDatos, false);
+check("sense històric: central 0", pSense.central, 0);
+check("sense històric: fiabilitat 0", pSense.fiabilidad.porcentaje, 0);
+
+// Menys anys → menys fiabilitat. Un sol gener contra els tres del museu estable.
+const unAny: VentaMensual[] = [{ mes: "01. Enero", año: 2025, numeroEntradas: 500 }];
+check(
+  "un any dona menys fiabilitat que tres",
+  preveuMes(unAny, { año: 2026, mesIndex: 0 }).fiabilidad.porcentaje < pEstable.fiabilidad.porcentaje,
+  true
+);
+
+// mesSeguent: després del desembre 2025 ve el gener 2026; enmig de l'any, el mes següent.
+check("mes següent salta d'any", mesSeguent(estable), { año: 2026, mesIndex: 0 });
+check(
+  "mes següent dins de l'any",
+  mesSeguent([{ mes: "07. Julio", año: 2025, numeroEntradas: 10 }]),
+  { año: 2025, mesIndex: 7 }
+);
+
+// Helpers de calendari.
+check("caps de setmana de juliol 2026", capsDeSetmana(2026, 6), 8); // 4 dissabtes + 4 diumenges
+check("indexMes amb prefix", indexMes("07. Julio"), 6);
+check("indexMes sense prefix", indexMes("Julio"), 6);
 
 console.log(fails === 0 ? "\nTOT OK" : `\n${fails} FALLADES`);
 process.exit(fails === 0 ? 0 : 1);
