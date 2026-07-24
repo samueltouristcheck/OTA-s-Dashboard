@@ -310,3 +310,164 @@ export function mesSeguent(ventas: VentaMensual[]): { año: number; mesIndex: nu
     ? { año: millor.año + 1, mesIndex: 0 }
     : { año: millor.año, mesIndex: millor.mesIndex + 1 };
 }
+
+/** Venda amb OTA i producte, per poder desglossar la previsió i fer recomanacions. */
+export type VentaDetallada = VentaMensual & { ota: string; producto: string };
+
+const NOMS_MES_CURT = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+];
+
+/** Mitjana d'entrades de cada mes (0-11) sobre els anys usables. */
+function mitjanaPerMes(ventas: VentaDetallada[], usables: number[]): number[] {
+  const perAnyMes = new Map<string, number>();
+  for (const v of ventas) {
+    if (!usables.includes(v.año)) continue;
+    const m = indexMes(v.mes);
+    if (m < 0) continue;
+    perAnyMes.set(`${v.año}|${m}`, (perAnyMes.get(`${v.año}|${m}`) || 0) + v.numeroEntradas);
+  }
+  const avg = Array(12).fill(0);
+  for (let m = 0; m < 12; m++) {
+    let s = 0;
+    let c = 0;
+    for (const a of usables) {
+      const val = perAnyMes.get(`${a}|${m}`);
+      if (val !== undefined) {
+        s += val;
+        c++;
+      }
+    }
+    avg[m] = c ? s / c : 0;
+  }
+  return avg;
+}
+
+/** Reparteix la previsió central segons el pes històric de cada OTA/producte en aquest mes. */
+function desglossa(
+  ventas: VentaDetallada[],
+  objetivo: { año: number; mesIndex: number },
+  usables: number[],
+  central: number,
+  camp: (v: VentaDetallada) => string
+): { nombre: string; valor: number }[] {
+  const per = new Map<string, number>();
+  let tot = 0;
+  for (const v of ventas) {
+    if (indexMes(v.mes) !== objetivo.mesIndex || !usables.includes(v.año)) continue;
+    const k = camp(v).trim() || "General";
+    per.set(k, (per.get(k) || 0) + v.numeroEntradas);
+    tot += v.numeroEntradas;
+  }
+  if (tot <= 0) return [];
+  return [...per.entries()]
+    .map(([nombre, val]) => ({ nombre, valor: Math.round(central * (val / tot)) }))
+    .sort((a, b) => b.valor - a.valor);
+}
+
+/** Recomanacions per al client (mai res sobre dades que falten: això és intern). */
+function generaRecomendaciones(
+  ventas: VentaDetallada[],
+  objetivo: { año: number; mesIndex: number },
+  usables: number[],
+  festius: string[]
+): string[] {
+  const recs: string[] = [];
+  const avg = mitjanaPerMes(ventas, usables);
+  const ambDades = avg.map((v, i) => ({ v, i })).filter((x) => x.v > 0);
+
+  // Mes fort i mes fluix.
+  if (ambDades.length >= 3) {
+    const fort = ambDades.reduce((a, b) => (b.v > a.v ? b : a));
+    const fluix = ambDades.reduce((a, b) => (b.v < a.v ? b : a));
+    if (fort.i === objetivo.mesIndex) {
+      recs.push(`${cap(NOMS_MES_CURT[fort.i])} suele ser tu mes más fuerte: prevé reforzar personal.`);
+    }
+    if (fluix.i === objetivo.mesIndex) {
+      recs.push(`${cap(NOMS_MES_CURT[fluix.i])} suele ser flojo: buen momento para una promoción.`);
+    }
+  }
+
+  // Nota de calendari per al mes objectiu.
+  const diesObj =
+    capsDeSetmana(objetivo.año, objetivo.mesIndex) + festiusLaborables(objetivo.año, objetivo.mesIndex, festius);
+  const historics = usables.filter((a) => a < objetivo.año);
+  if (historics.length) {
+    const diesHist =
+      historics.reduce(
+        (s, a) => s + capsDeSetmana(a, objetivo.mesIndex) + festiusLaborables(a, objetivo.mesIndex, festius),
+        0
+      ) / historics.length;
+    const dif = Math.round(diesObj - diesHist);
+    if (dif >= 1) recs.push(`Este ${NOMS_MES_CURT[objetivo.mesIndex]} tiene más días fuertes (findes/festivos) que la media: ligero empujón esperado.`);
+    else if (dif <= -1) recs.push(`Este ${NOMS_MES_CURT[objetivo.mesIndex]} tiene menos días fuertes que la media: puede quedar algo por debajo.`);
+  }
+
+  // Impuls d'una OTA: comparar les dues darreres anualitats usables.
+  if (usables.length >= 2) {
+    const [a1, a2] = usables.slice(-2);
+    const totOta = (año: number) => {
+      const m = new Map<string, number>();
+      for (const v of ventas) if (v.año === año) m.set(v.ota, (m.get(v.ota) || 0) + v.numeroEntradas);
+      return m;
+    };
+    const prev = totOta(a1);
+    const act = totOta(a2);
+    let millor: { ota: string; pct: number } | null = null;
+    for (const [ota, va] of act) {
+      const vp = prev.get(ota) || 0;
+      if (vp < 20) continue; // ignorar OTAs residuals
+      const pct = Math.round((100 * (va - vp)) / vp);
+      if (pct >= 15 && (!millor || pct > millor.pct)) millor = { ota, pct };
+    }
+    if (millor) recs.push(`${millor.ota} es tu canal con más impulso (+${millor.pct}% interanual).`);
+  }
+
+  return recs;
+}
+
+function cap(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+export type AnalisiPrevisio = {
+  prevision: Prevision;
+  desglose: { porOta: { nombre: string; valor: number }[]; porProducto: { nombre: string; valor: number }[] };
+  recomendaciones: string[];
+};
+
+/**
+ * Anàlisi completa d'un client: previsió del mes objectiu (o el següent), desglossament i recomanacions.
+ * L'API només ha de cridar això.
+ */
+export function analitzaClient(
+  ventas: VentaDetallada[],
+  festius: string[] = [],
+  objetivoOpt?: { año: number; mesIndex: number }
+): AnalisiPrevisio {
+  const objetivo = objetivoOpt ?? mesSeguent(ventas);
+  const prevision = preveuMes(ventas, objetivo, festius);
+
+  if (!prevision.hayDatos) {
+    return { prevision, desglose: { porOta: [], porProducto: [] }, recomendaciones: [] };
+  }
+
+  const totals = totalsPerAnyMes(ventas);
+  const anys = [...new Set(ventas.map((v) => v.año))].filter(Boolean).sort();
+  let ultimMes = -1;
+  for (const k of totals.keys()) {
+    const [a, m] = k.split("|").map(Number);
+    ultimMes = Math.max(ultimMes, a * 12 + m);
+  }
+  const { usables } = seleccionaAnys(totals, anys, ultimMes);
+
+  return {
+    prevision,
+    desglose: {
+      porOta: desglossa(ventas, objetivo, usables, prevision.central, (v) => v.ota),
+      porProducto: desglossa(ventas, objetivo, usables, prevision.central, (v) => v.producto),
+    },
+    recomendaciones: generaRecomendaciones(ventas, objetivo, usables, festius),
+  };
+}
