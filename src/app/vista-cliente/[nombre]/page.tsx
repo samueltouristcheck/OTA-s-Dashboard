@@ -3,9 +3,10 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { DashboardContent } from "@/components/DashboardContent";
+import { PrevisionPanel } from "@/components/PrevisionPanel";
 import { clienteSheetsEquiv } from "@/lib/clientes-sheet";
 import Link from "next/link";
-import { X, ArrowLeft } from "lucide-react";
+import { X, ArrowLeft, TrendingUp } from "lucide-react";
 
 export default function VistaClientePage() {
   const params = useParams();
@@ -74,6 +75,15 @@ export default function VistaClientePage() {
           showClienteFilter={false}
           clientMode={true}
         />
+
+        {/* La previsió, tal com la veu el museu (sense l'avís intern de dades). */}
+        <div className="mt-10">
+          <h2 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-blue-600" />
+            Previsión de ventas
+          </h2>
+          <PrevisionPanel clienteId={nombre} mostrarAviso={false} />
+        </div>
       </div>
     </div>
   );
