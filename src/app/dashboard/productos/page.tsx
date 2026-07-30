@@ -13,6 +13,8 @@ type ProductoRow = {
   total: number;
 };
 
+type FiltreClient = { ota: string[]; tipo: string[] };
+
 function nf(n: number) {
   return (n || 0).toLocaleString("es-ES");
 }
@@ -20,16 +22,16 @@ function nf(n: number) {
 export default function ProductosPage() {
   const [anys, setAnys] = useState<number[]>([]);
   const [productos, setProductos] = useState<ProductoRow[]>([]);
-  const [filtros, setFiltros] = useState<{ clientes: string[]; otas: string[]; tipos: string[] }>({ clientes: [], otas: [], tipos: [] });
+  const [filtros, setFiltros] = useState<{ clientes: string[] }>({ clientes: [] });
   const [cargando, setCargando] = useState(true);
 
   const [busca, setBusca] = useState("");
   const [fCliente, setFCliente] = useState<string[]>([]);
-  const [fOta, setFOta] = useState<string[]>([]);
-  const [fTipo, setFTipo] = useState<string[]>([]);
   const [fAño, setFAño] = useState<string[]>([]);
   const [orden, setOrden] = useState<{ col: "cliente" | "total" | number; desc: boolean }>({ col: "cliente", desc: false });
   const [oberts, setOberts] = useState<Set<string>>(new Set());
+  // Filtres propis de cada client (només s'apliquen a les seves línies).
+  const [filtresClient, setFiltresClient] = useState<Record<string, FiltreClient>>({});
 
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "{}") : null;
@@ -41,11 +43,11 @@ export default function ProductosPage() {
       return;
     }
     fetch("/api/productos", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : { anys: [], productos: [], filtros: { clientes: [], otas: [], tipos: [] } }))
+      .then((r) => (r.ok ? r.json() : { anys: [], productos: [], filtros: { clientes: [] } }))
       .then((d) => {
         setAnys(Array.isArray(d.anys) ? d.anys : []);
         setProductos(Array.isArray(d.productos) ? d.productos : []);
-        setFiltros(d.filtros || { clientes: [], otas: [], tipos: [] });
+        setFiltros({ clientes: d.filtros?.clientes || [] });
       })
       .catch(() => {})
       .finally(() => setCargando(false));
@@ -54,19 +56,15 @@ export default function ProductosPage() {
   const anysVisibles = fAño.length ? anys.filter((a) => fAño.includes(String(a))) : anys;
   const totalDe = (p: ProductoRow) => anysVisibles.reduce((s, a) => s + (p.porAño[a] || 0), 0);
 
-  // Filtrar les línies de detall.
   const detalle = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return productos.filter((p) => {
       if (fCliente.length && !fCliente.includes(p.cliente)) return false;
-      if (fOta.length && !fOta.includes(p.ota)) return false;
-      if (fTipo.length && !fTipo.includes(p.tipoEntrada)) return false;
       if (q && !p.cliente.toLowerCase().includes(q) && !p.producto.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [productos, busca, fCliente, fOta, fTipo]);
+  }, [productos, busca, fCliente]);
 
-  // Agrupar per client: fila resum + les seves línies de detall.
   const grups = useMemo(() => {
     const m = new Map<string, ProductoRow[]>();
     for (const p of detalle) {
@@ -77,8 +75,14 @@ export default function ProductosPage() {
       const porAño: Record<number, number> = {};
       for (const p of filas) for (const a of anysVisibles) porAño[a] = (porAño[a] || 0) + (p.porAño[a] || 0);
       const total = anysVisibles.reduce((s, a) => s + (porAño[a] || 0), 0);
-      const detall = [...filas].sort((a, b) => totalDe(b) - totalDe(a));
-      return { cliente, porAño, total, detall };
+      return {
+        cliente,
+        porAño,
+        total,
+        detall: [...filas].sort((a, b) => totalDe(b) - totalDe(a)),
+        otas: [...new Set(filas.map((f) => f.ota).filter(Boolean))].sort(),
+        tipos: [...new Set(filas.map((f) => f.tipoEntrada).filter(Boolean))].sort(),
+      };
     });
     arr.sort((a, b) => {
       let d = 0;
@@ -111,13 +115,19 @@ export default function ProductosPage() {
       return n;
     });
   }
+  function toggleFiltre(cliente: string, camp: "ota" | "tipo", valor: string) {
+    setFiltresClient((prev) => {
+      const actual = prev[cliente] ?? { ota: [], tipo: [] };
+      const llista = actual[camp];
+      const nova = llista.includes(valor) ? llista.filter((x) => x !== valor) : [...llista, valor];
+      return { ...prev, [cliente]: { ...actual, [camp]: nova } };
+    });
+  }
 
-  const hiHaFiltres = !!busca || fCliente.length || fOta.length || fTipo.length || fAño.length;
+  const hiHaFiltres = !!busca || fCliente.length || fAño.length;
   function netejar() {
     setBusca("");
     setFCliente([]);
-    setFOta([]);
-    setFTipo([]);
     setFAño([]);
   }
 
@@ -135,7 +145,7 @@ export default function ProductosPage() {
           Productos
         </h1>
         <p className="text-slate-500 text-sm mt-0.5">
-          Un cliente por fila. Haz clic para ver sus productos, OTAs y tipos de entrada.
+          Un cliente por fila. Haz clic para ver sus productos y filtrar por sus OTAs y tipos de entrada.
         </p>
       </div>
 
@@ -147,8 +157,6 @@ export default function ProductosPage() {
           className="border border-slate-200 rounded-lg px-3 py-2 h-9 text-sm bg-white min-w-[200px]"
         />
         <MultiSelect options={filtros.clientes} selected={fCliente} onChange={setFCliente} placeholder="Cliente" />
-        <MultiSelect options={filtros.otas} selected={fOta} onChange={setFOta} placeholder="OTA" />
-        <MultiSelect options={filtros.tipos} selected={fTipo} onChange={setFTipo} placeholder="Tipo de entrada" />
         <MultiSelect options={anys.map(String)} selected={fAño} onChange={setFAño} placeholder="Año" />
         {hiHaFiltres && (
           <button onClick={netejar} className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">
@@ -183,12 +191,13 @@ export default function ProductosPage() {
               <tbody>
                 {grups.map((g) => {
                   const obert = oberts.has(g.cliente);
+                  const fc = filtresClient[g.cliente] ?? { ota: [], tipo: [] };
+                  const detallFiltrat = g.detall.filter(
+                    (p) => (!fc.ota.length || fc.ota.includes(p.ota)) && (!fc.tipo.length || fc.tipo.includes(p.tipoEntrada))
+                  );
                   return (
                     <FragmentCliente key={g.cliente}>
-                      <tr
-                        onClick={() => toggle(g.cliente)}
-                        className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer"
-                      >
+                      <tr onClick={() => toggle(g.cliente)} className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer">
                         <td className="px-4 py-2.5 font-medium text-slate-800">
                           <span className="inline-flex items-center gap-1.5">
                             {obert ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
@@ -205,21 +214,41 @@ export default function ProductosPage() {
                         ))}
                         <td className="px-4 py-2.5 text-right font-semibold text-slate-900">{nf(g.total)}</td>
                       </tr>
-                      {obert &&
-                        g.detall.map((p, i) => (
-                          <tr key={i} className="border-b border-slate-50 bg-slate-50/40 text-slate-600">
-                            <td className="px-4 py-1.5"></td>
-                            <td className="px-4 py-1.5 pl-6">{p.producto}</td>
-                            <td className="px-4 py-1.5">{p.ota}</td>
-                            <td className="px-4 py-1.5">{p.tipoEntrada}</td>
-                            {anysVisibles.map((a) => (
-                              <td key={a} className="px-4 py-1.5 text-right">
-                                {p.porAño[a] ? nf(p.porAño[a]) : "—"}
-                              </td>
-                            ))}
-                            <td className="px-4 py-1.5 text-right font-medium">{nf(totalDe(p))}</td>
+
+                      {obert && (
+                        <>
+                          {/* Filtres propis d'aquest client */}
+                          <tr className="bg-slate-50 border-b border-slate-100">
+                            <td colSpan={nCols} className="px-6 py-2.5">
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                                <Chips label="OTA" valores={g.otas} sel={fc.ota} onToggle={(v) => toggleFiltre(g.cliente, "ota", v)} />
+                                <Chips label="Tipo" valores={g.tipos} sel={fc.tipo} onToggle={(v) => toggleFiltre(g.cliente, "tipo", v)} />
+                              </div>
+                            </td>
                           </tr>
-                        ))}
+                          {detallFiltrat.map((p, i) => (
+                            <tr key={i} className="border-b border-slate-50 bg-slate-50/40 text-slate-600">
+                              <td className="px-4 py-1.5"></td>
+                              <td className="px-4 py-1.5 pl-6">{p.producto}</td>
+                              <td className="px-4 py-1.5">{p.ota}</td>
+                              <td className="px-4 py-1.5">{p.tipoEntrada}</td>
+                              {anysVisibles.map((a) => (
+                                <td key={a} className="px-4 py-1.5 text-right">
+                                  {p.porAño[a] ? nf(p.porAño[a]) : "—"}
+                                </td>
+                              ))}
+                              <td className="px-4 py-1.5 text-right font-medium">{nf(totalDe(p))}</td>
+                            </tr>
+                          ))}
+                          {detallFiltrat.length === 0 && (
+                            <tr className="bg-slate-50/40">
+                              <td colSpan={nCols} className="px-6 py-2 text-slate-400 text-xs">
+                                Sin líneas con esos filtros.
+                              </td>
+                            </tr>
+                          )}
+                        </>
+                      )}
                     </FragmentCliente>
                   );
                 })}
@@ -250,6 +279,42 @@ export default function ProductosPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function Chips({
+  label,
+  valores,
+  sel,
+  onToggle,
+}: {
+  label: string;
+  valores: string[];
+  sel: string[];
+  onToggle: (v: string) => void;
+}) {
+  if (!valores.length) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="text-xs font-medium text-slate-500 mr-0.5">{label}:</span>
+      {valores.map((v) => {
+        const activo = sel.includes(v);
+        return (
+          <button
+            key={v}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle(v);
+            }}
+            className={`px-2 py-0.5 rounded-full text-xs border transition-colors ${
+              activo ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-600 border-slate-300 hover:border-blue-400"
+            }`}
+          >
+            {v}
+          </button>
+        );
+      })}
     </div>
   );
 }
