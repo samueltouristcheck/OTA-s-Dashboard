@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Package, ArrowUpDown, X } from "lucide-react";
+import { Package, ArrowUpDown, X, ChevronRight, ChevronDown } from "lucide-react";
 import { MultiSelect } from "@/components/MultiSelect";
 
 type ProductoRow = {
@@ -29,6 +29,7 @@ export default function ProductosPage() {
   const [fTipo, setFTipo] = useState<string[]>([]);
   const [fAño, setFAño] = useState<string[]>([]);
   const [orden, setOrden] = useState<{ col: "cliente" | "total" | number; desc: boolean }>({ col: "cliente", desc: false });
+  const [oberts, setOberts] = useState<Set<string>>(new Set());
 
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "{}") : null;
@@ -50,46 +51,65 @@ export default function ProductosPage() {
       .finally(() => setCargando(false));
   }, [token, isAdmin]);
 
-  // Anys visibles: si es filtra per any, només aquests.
   const anysVisibles = fAño.length ? anys.filter((a) => fAño.includes(String(a))) : anys;
+  const totalDe = (p: ProductoRow) => anysVisibles.reduce((s, a) => s + (p.porAño[a] || 0), 0);
 
-  const filas = useMemo(() => {
+  // Filtrar les línies de detall.
+  const detalle = useMemo(() => {
     const q = busca.trim().toLowerCase();
-    let f = productos.filter((p) => {
+    return productos.filter((p) => {
       if (fCliente.length && !fCliente.includes(p.cliente)) return false;
       if (fOta.length && !fOta.includes(p.ota)) return false;
       if (fTipo.length && !fTipo.includes(p.tipoEntrada)) return false;
       if (q && !p.cliente.toLowerCase().includes(q) && !p.producto.toLowerCase().includes(q)) return false;
       return true;
     });
+  }, [productos, busca, fCliente, fOta, fTipo]);
 
-    // El "total" de cada fila respecta el filtre d'anys.
-    const totalFila = (p: ProductoRow) => anysVisibles.reduce((s, a) => s + (p.porAño[a] || 0), 0);
-
-    f = [...f].sort((a, b) => {
+  // Agrupar per client: fila resum + les seves línies de detall.
+  const grups = useMemo(() => {
+    const m = new Map<string, ProductoRow[]>();
+    for (const p of detalle) {
+      if (!m.has(p.cliente)) m.set(p.cliente, []);
+      m.get(p.cliente)!.push(p);
+    }
+    const arr = [...m.entries()].map(([cliente, filas]) => {
+      const porAño: Record<number, number> = {};
+      for (const p of filas) for (const a of anysVisibles) porAño[a] = (porAño[a] || 0) + (p.porAño[a] || 0);
+      const total = anysVisibles.reduce((s, a) => s + (porAño[a] || 0), 0);
+      const detall = [...filas].sort((a, b) => totalDe(b) - totalDe(a));
+      return { cliente, porAño, total, detall };
+    });
+    arr.sort((a, b) => {
       let d = 0;
-      if (orden.col === "cliente") d = a.cliente.localeCompare(b.cliente) || totalFila(b) - totalFila(a);
-      else if (orden.col === "total") d = totalFila(a) - totalFila(b);
+      if (orden.col === "cliente") d = a.cliente.localeCompare(b.cliente);
+      else if (orden.col === "total") d = a.total - b.total;
       else d = (a.porAño[orden.col] || 0) - (b.porAño[orden.col] || 0);
       return orden.desc ? -d : d;
     });
-    return f;
-  }, [productos, busca, fCliente, fOta, fTipo, anysVisibles, orden]);
+    return arr;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detalle, anysVisibles, orden]);
 
   const totales = useMemo(() => {
     const porAño: Record<number, number> = {};
     let total = 0;
-    for (const p of filas) {
-      for (const a of anysVisibles) {
-        porAño[a] = (porAño[a] || 0) + (p.porAño[a] || 0);
-        total += p.porAño[a] || 0;
-      }
+    for (const g of grups) {
+      for (const a of anysVisibles) porAño[a] = (porAño[a] || 0) + (g.porAño[a] || 0);
+      total += g.total;
     }
     return { porAño, total };
-  }, [filas, anysVisibles]);
+  }, [grups, anysVisibles]);
 
   function ordenar(col: "cliente" | "total" | number) {
     setOrden((o) => (o.col === col ? { col, desc: !o.desc } : { col, desc: col !== "cliente" }));
+  }
+  function toggle(cliente: string) {
+    setOberts((prev) => {
+      const n = new Set(prev);
+      n.has(cliente) ? n.delete(cliente) : n.add(cliente);
+      return n;
+    });
   }
 
   const hiHaFiltres = !!busca || fCliente.length || fOta.length || fTipo.length || fAño.length;
@@ -105,6 +125,8 @@ export default function ProductosPage() {
     return <div className="text-slate-600">No tienes permisos para acceder a esta sección.</div>;
   }
 
+  const nCols = anysVisibles.length + 5;
+
   return (
     <div className="space-y-4">
       <div>
@@ -113,7 +135,7 @@ export default function ProductosPage() {
           Productos
         </h1>
         <p className="text-slate-500 text-sm mt-0.5">
-          Todos los productos de todos los clientes, con su histórico por año, OTA y tipo de entrada.
+          Un cliente por fila. Haz clic para ver sus productos, OTAs y tipos de entrada.
         </p>
       </div>
 
@@ -159,36 +181,61 @@ export default function ProductosPage() {
                 </tr>
               </thead>
               <tbody>
-                {filas.map((p, i) => {
-                  const totalFila = anysVisibles.reduce((s, a) => s + (p.porAño[a] || 0), 0);
+                {grups.map((g) => {
+                  const obert = oberts.has(g.cliente);
                   return (
-                    <tr key={i} className="border-b border-slate-100 hover:bg-slate-50/50">
-                      <td className="px-4 py-2 text-slate-800">{p.cliente}</td>
-                      <td className="px-4 py-2 text-slate-600">{p.producto}</td>
-                      <td className="px-4 py-2 text-slate-500">{p.ota}</td>
-                      <td className="px-4 py-2 text-slate-500">{p.tipoEntrada}</td>
-                      {anysVisibles.map((a) => (
-                        <td key={a} className="px-4 py-2 text-right text-slate-700">
-                          {p.porAño[a] ? nf(p.porAño[a]) : "—"}
+                    <FragmentCliente key={g.cliente}>
+                      <tr
+                        onClick={() => toggle(g.cliente)}
+                        className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer"
+                      >
+                        <td className="px-4 py-2.5 font-medium text-slate-800">
+                          <span className="inline-flex items-center gap-1.5">
+                            {obert ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
+                            {g.cliente}
+                          </span>
                         </td>
-                      ))}
-                      <td className="px-4 py-2 text-right font-medium text-slate-800">{nf(totalFila)}</td>
-                    </tr>
+                        <td className="px-4 py-2.5 text-slate-400" colSpan={3}>
+                          {g.detall.length} línea{g.detall.length !== 1 ? "s" : ""}
+                        </td>
+                        {anysVisibles.map((a) => (
+                          <td key={a} className="px-4 py-2.5 text-right text-slate-700">
+                            {g.porAño[a] ? nf(g.porAño[a]) : "—"}
+                          </td>
+                        ))}
+                        <td className="px-4 py-2.5 text-right font-semibold text-slate-900">{nf(g.total)}</td>
+                      </tr>
+                      {obert &&
+                        g.detall.map((p, i) => (
+                          <tr key={i} className="border-b border-slate-50 bg-slate-50/40 text-slate-600">
+                            <td className="px-4 py-1.5"></td>
+                            <td className="px-4 py-1.5 pl-6">{p.producto}</td>
+                            <td className="px-4 py-1.5">{p.ota}</td>
+                            <td className="px-4 py-1.5">{p.tipoEntrada}</td>
+                            {anysVisibles.map((a) => (
+                              <td key={a} className="px-4 py-1.5 text-right">
+                                {p.porAño[a] ? nf(p.porAño[a]) : "—"}
+                              </td>
+                            ))}
+                            <td className="px-4 py-1.5 text-right font-medium">{nf(totalDe(p))}</td>
+                          </tr>
+                        ))}
+                    </FragmentCliente>
                   );
                 })}
-                {filas.length === 0 && (
+                {grups.length === 0 && (
                   <tr>
-                    <td colSpan={anysVisibles.length + 5} className="px-4 py-8 text-center text-slate-500">
+                    <td colSpan={nCols} className="px-4 py-8 text-center text-slate-500">
                       Sin resultados con estos filtros.
                     </td>
                   </tr>
                 )}
               </tbody>
-              {filas.length > 0 && (
+              {grups.length > 0 && (
                 <tfoot>
                   <tr className="bg-slate-100 font-medium text-slate-800 border-t-2 border-slate-300">
                     <td className="px-4 py-2.5" colSpan={4}>
-                      Total ({filas.length} líneas)
+                      Total ({grups.length} clientes)
                     </td>
                     {anysVisibles.map((a) => (
                       <td key={a} className="px-4 py-2.5 text-right">
@@ -205,6 +252,10 @@ export default function ProductosPage() {
       )}
     </div>
   );
+}
+
+function FragmentCliente({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
 }
 
 function Th({ children, onClick, right }: { children: React.ReactNode; onClick: () => void; right?: boolean }) {
