@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, Save, Copy } from "lucide-react";
+import { Plus, Trash2, Save, Copy, Sparkles } from "lucide-react";
+import { AsistenteOCR } from "@/components/AsistenteOCR";
 
 const MESES = [
   "01. Enero",
@@ -75,6 +76,7 @@ export default function DatosMensualesPage() {
   const [cargando, setCargando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [message, setMessage] = useState<{ type: "ok" | "error"; text: string } | null>(null);
+  const [asistente, setAsistente] = useState(false);
 
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "{}") : null;
@@ -299,6 +301,15 @@ export default function DatosMensualesPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setAsistente(true)}
+            disabled={!clienteId}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm text-white bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50"
+            title="Sube una captura y la IA carga los datos (los revisas antes)"
+          >
+            <Sparkles className="w-4 h-4" />
+            Cargar con IA
+          </button>
+          <button
             onClick={copiarEstructura}
             disabled={cargando || guardando || !clienteId}
             className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50"
@@ -459,6 +470,16 @@ export default function DatosMensualesPage() {
       <p className="text-xs text-slate-400">
         Una celda vacía no es lo mismo que un 0: vacía significa que no hay dato y no se guarda ninguna fila.
       </p>
+
+      {asistente && clienteId && (
+        <AsistenteOCR
+          clienteId={clienteId}
+          clienteNombre={clientes.find((c) => c.id === clienteId)?.nombre || ""}
+          ano={ano}
+          onImportado={() => cargar(clienteId, ano)}
+          onClose={() => setAsistente(false)}
+        />
+      )}
     </div>
   );
 }
