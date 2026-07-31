@@ -35,6 +35,12 @@ type Cabecera = { ota: string; producto: string; tipoEntrada: string };
 
 /** Una fila de la graella: una combinació d'OTA, producte i tipus, amb els 12 mesos. */
 type Fila = Cabecera & {
+  /**
+   * Identificador estable de la fila (no canvia en editar). És la key de React: si fes servir el
+   * contingut editable, en escriure una lletra canviaria la key, React recrearia la fila i l'input
+   * perdria el focus a cada tecla.
+   */
+  uid: string;
   /** null = la cel·la no existeix a la base de dades (diferent de 0). */
   meses: (number | null)[];
   /**
@@ -46,12 +52,16 @@ type Fila = Cabecera & {
 
 const clau = (f: Cabecera) => `${f.ota}||${f.producto}||${f.tipoEntrada}`;
 
+let uidSeq = 0;
+const nouUid = () => `f${uidSeq++}`;
+
 function filasDesdeVentas(ventas: Venta[]): Fila[] {
   const mapa = new Map<string, Fila>();
   for (const v of ventas) {
     const k = clau(v);
     if (!mapa.has(k)) {
       mapa.set(k, {
+        uid: nouUid(),
         ota: v.ota,
         producto: v.producto,
         tipoEntrada: v.tipoEntrada,
@@ -152,7 +162,7 @@ export default function DatosMensualesPage() {
   }
 
   function anadirFila() {
-    setFilas((prev) => [...prev, { ota: "", producto: "", tipoEntrada: "General", meses: Array(12).fill(null), origen: null }]);
+    setFilas((prev) => [...prev, { uid: nouUid(), ota: "", producto: "", tipoEntrada: "General", meses: Array(12).fill(null), origen: null }]);
   }
 
   async function copiarEstructura() {
@@ -173,7 +183,7 @@ export default function DatosMensualesPage() {
       const existentes = new Set(filas.map(clau));
       const nuevas = previas
         .filter((f) => !existentes.has(clau(f)))
-        .map((f) => ({ ota: f.ota, producto: f.producto, tipoEntrada: f.tipoEntrada, meses: Array(12).fill(null), origen: null }));
+        .map((f) => ({ uid: nouUid(), ota: f.ota, producto: f.producto, tipoEntrada: f.tipoEntrada, meses: Array(12).fill(null), origen: null }));
       if (!nuevas.length) {
         setMessage({ type: "ok", text: "Ya están todas las filas del año anterior" });
         return;
@@ -408,7 +418,7 @@ export default function DatosMensualesPage() {
                 filas.map((f, fi) => {
                   const totalFila = f.meses.reduce((s: number, n) => s + (n ?? 0), 0);
                   return (
-                    <tr key={`${clau(f)}-${fi}`} className="border-b border-slate-100 hover:bg-slate-50/50">
+                    <tr key={f.uid} className="border-b border-slate-100 hover:bg-slate-50/50">
                       {(["ota", "producto", "tipoEntrada"] as const).map((campo) => (
                         <td key={campo} className="px-2 py-1 border-r border-slate-100">
                           <input
