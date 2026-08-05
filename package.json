@@ -20,7 +20,8 @@
     "backup:ventas": "tsx scripts/backup-ventas.ts",
     "migrar:ventas": "tsx scripts/migrar-ventas.ts",
     "test:stats": "tsx scripts/test-stats.ts",
-    "comparar": "tsx scripts/comparar-fonts.ts"
+    "comparar": "tsx scripts/comparar-fonts.ts",
+    "importar:nous": "tsx scripts/importar-nous.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
