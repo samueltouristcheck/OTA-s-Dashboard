@@ -28,6 +28,8 @@ export default function ProductosPage() {
   const [busca, setBusca] = useState("");
   const [fCliente, setFCliente] = useState<string[]>([]);
   const [fAño, setFAño] = useState<string[]>([]);
+  const [fOta, setFOta] = useState<string[]>([]);
+  const [fTipo, setFTipo] = useState<string[]>([]);
   const [orden, setOrden] = useState<{ col: "cliente" | "total" | number; desc: boolean }>({ col: "cliente", desc: false });
   const [oberts, setOberts] = useState<Set<string>>(new Set());
   // Filtres propis de cada client (només s'apliquen a les seves línies).
@@ -56,14 +58,26 @@ export default function ProductosPage() {
   const anysVisibles = fAño.length ? anys.filter((a) => fAño.includes(String(a))) : anys;
   const totalDe = (p: ProductoRow) => anysVisibles.reduce((s, a) => s + (p.porAño[a] || 0), 0);
 
+  // Opcions globals d'OTA i tipus (de tots els clients) per als filtres de dalt.
+  const otasGlobals = useMemo(
+    () => [...new Set(productos.map((p) => p.ota).filter(Boolean))].sort(),
+    [productos]
+  );
+  const tiposGlobals = useMemo(
+    () => [...new Set(productos.map((p) => p.tipoEntrada).filter(Boolean))].sort(),
+    [productos]
+  );
+
   const detalle = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return productos.filter((p) => {
       if (fCliente.length && !fCliente.includes(p.cliente)) return false;
+      if (fOta.length && !fOta.includes(p.ota)) return false;
+      if (fTipo.length && !fTipo.includes(p.tipoEntrada)) return false;
       if (q && !p.cliente.toLowerCase().includes(q) && !p.producto.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [productos, busca, fCliente]);
+  }, [productos, busca, fCliente, fOta, fTipo]);
 
   const grups = useMemo(() => {
     const m = new Map<string, ProductoRow[]>();
@@ -124,11 +138,13 @@ export default function ProductosPage() {
     });
   }
 
-  const hiHaFiltres = !!busca || fCliente.length || fAño.length;
+  const hiHaFiltres = !!busca || fCliente.length || fAño.length || fOta.length || fTipo.length;
   function netejar() {
     setBusca("");
     setFCliente([]);
     setFAño([]);
+    setFOta([]);
+    setFTipo([]);
   }
 
   if (!isAdmin) {
@@ -158,6 +174,8 @@ export default function ProductosPage() {
         />
         <MultiSelect options={filtros.clientes} selected={fCliente} onChange={setFCliente} placeholder="Cliente" />
         <MultiSelect options={anys.map(String)} selected={fAño} onChange={setFAño} placeholder="Año" />
+        <MultiSelect options={otasGlobals} selected={fOta} onChange={setFOta} placeholder="OTA" />
+        <MultiSelect options={tiposGlobals} selected={fTipo} onChange={setFTipo} placeholder="Categoría" />
         {hiHaFiltres && (
           <button onClick={netejar} className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">
             <X className="w-4 h-4" />
