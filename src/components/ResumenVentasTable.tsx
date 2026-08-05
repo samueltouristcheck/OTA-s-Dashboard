@@ -40,7 +40,10 @@ type Row = {
 
 export function ResumenVentasTable({ ventas }: { ventas: Venta[] }) {
   const distinctProducts = new Set(ventas.map((v) => normProducto(v.producto)));
-  const showProductCol = distinctProducts.size > 1;
+  // Mostrem la columna de producte si n'hi ha més d'un, o si l'únic no és el genèric "General" (així,
+  // filtrant per un any amb un sol producte real com "Vino catalán", no desapareix de la vista).
+  const showProductCol =
+    distinctProducts.size > 1 || (distinctProducts.size === 1 && !distinctProducts.has("General"));
 
   const totalesPorMes = MES_ORDER.map(() => 0);
 
