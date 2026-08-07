@@ -48,7 +48,8 @@ export function ResumenVentasTable({ ventas }: { ventas: Venta[] }) {
   const totalesPorMes = MES_ORDER.map(() => 0);
 
   const pivotSimple: Record<string, Record<string, Record<number, number>>> = {};
-  const pivotByProduct: Record<string, Record<string, Record<string, Record<number, number>>>> = {};
+  // Agrupació OTA -> Producto -> Tipo (primer l'OTA, després el producte).
+  const pivotByOtaProd: Record<string, Record<string, Record<string, Record<number, number>>>> = {};
 
   const otasSet = new Set<string>();
   const tiposSet = new Set<string>();
@@ -64,10 +65,10 @@ export function ResumenVentasTable({ ventas }: { ventas: Venta[] }) {
 
     if (showProductCol) {
       const prod = normProducto(v.producto);
-      if (!pivotByProduct[prod]) pivotByProduct[prod] = {};
-      if (!pivotByProduct[prod][ota]) pivotByProduct[prod][ota] = {};
-      if (!pivotByProduct[prod][ota][tipo]) pivotByProduct[prod][ota][tipo] = {};
-      pivotByProduct[prod][ota][tipo][mesIdx] = (pivotByProduct[prod][ota][tipo][mesIdx] || 0) + v.numeroEntradas;
+      if (!pivotByOtaProd[ota]) pivotByOtaProd[ota] = {};
+      if (!pivotByOtaProd[ota][prod]) pivotByOtaProd[ota][prod] = {};
+      if (!pivotByOtaProd[ota][prod][tipo]) pivotByOtaProd[ota][prod][tipo] = {};
+      pivotByOtaProd[ota][prod][tipo][mesIdx] = (pivotByOtaProd[ota][prod][tipo][mesIdx] || 0) + v.numeroEntradas;
     } else {
       if (!pivotSimple[ota]) pivotSimple[ota] = {};
       if (!pivotSimple[ota][tipo]) pivotSimple[ota][tipo] = {};
@@ -83,43 +84,45 @@ export function ResumenVentasTable({ ventas }: { ventas: Venta[] }) {
   const rows: Row[] = [];
 
   if (showProductCol) {
-    const productos = [...distinctProducts].sort((a, b) => {
+    const ordenaProductos = (a: string, b: string) => {
       if (a === "General") return 1;
       if (b === "General") return -1;
       return a.localeCompare(b);
-    });
+    };
+    const otas = [...otasSet].sort();
 
-    for (const prod of productos) {
-      const otasEnProd = [...new Set(Object.keys(pivotByProduct[prod] || {}))].sort();
-      let prodRowCount = 0;
-      for (const ota of otasEnProd) {
-        const tiposEnOta = Object.keys(pivotByProduct[prod]?.[ota] || {}).sort(tiposOrder);
-        prodRowCount += tiposEnOta.length + 1;
+    for (const ota of otas) {
+      const productosEnOta = Object.keys(pivotByOtaProd[ota] || {}).sort(ordenaProductos);
+      // L'OTA abasta totes les files dels seus productes (tipus + subtotal per producte).
+      let otaRowCount = 0;
+      for (const prod of productosEnOta) {
+        const tiposEnProd = Object.keys(pivotByOtaProd[ota]?.[prod] || {}).sort(tiposOrder);
+        otaRowCount += tiposEnProd.length + 1;
       }
 
-      let firstInProd = true;
-      for (const ota of otasEnProd) {
-        const tiposEnOta = Object.keys(pivotByProduct[prod]?.[ota] || {}).sort(tiposOrder);
-        const otaRowCount = tiposEnOta.length + 1;
-        let firstInOta = true;
+      let firstInOta = true;
+      for (const prod of productosEnOta) {
+        const tiposEnProd = Object.keys(pivotByOtaProd[ota]?.[prod] || {}).sort(tiposOrder);
+        const prodRowCount = tiposEnProd.length + 1;
+        let firstInProd = true;
 
-        for (const tipo of tiposEnOta) {
-          const valores = MES_ORDER.map((_, i) => pivotByProduct[prod]?.[ota]?.[tipo]?.[i] ?? 0);
+        for (const tipo of tiposEnProd) {
+          const valores = MES_ORDER.map((_, i) => pivotByOtaProd[ota]?.[prod]?.[tipo]?.[i] ?? 0);
           valores.forEach((v, i) => (totalesPorMes[i] += v));
           rows.push({
-            producto: firstInProd ? prod : undefined,
-            productoRowSpan: firstInProd ? prodRowCount : undefined,
             ota: firstInOta ? ota : undefined,
             otaRowSpan: firstInOta ? otaRowCount : undefined,
+            producto: firstInProd ? prod : undefined,
+            productoRowSpan: firstInProd ? prodRowCount : undefined,
             tipo,
             valores,
           });
-          firstInProd = false;
           firstInOta = false;
+          firstInProd = false;
         }
 
         const subtotalValores = MES_ORDER.map((_, i) =>
-          tiposEnOta.reduce((s, t) => s + (pivotByProduct[prod]?.[ota]?.[t]?.[i] ?? 0), 0)
+          tiposEnProd.reduce((s, t) => s + (pivotByOtaProd[ota]?.[prod]?.[t]?.[i] ?? 0), 0)
         );
         rows.push({
           tipo: "Subtotal",
@@ -166,7 +169,7 @@ export function ResumenVentasTable({ ventas }: { ventas: Venta[] }) {
 
   const exportData: string[][] = [
     showProductCol
-      ? ["Producto", "OTA", "Tipo de Entrada", ...MES_ORDER.map((m) => m.replace(/^\d+\.\s*/, ""))]
+      ? ["OTA", "Producto", "Tipo de Entrada", ...MES_ORDER.map((m) => m.replace(/^\d+\.\s*/, ""))]
       : ["OTA", "Tipo de Entrada", ...MES_ORDER.map((m) => m.replace(/^\d+\.\s*/, ""))],
   ];
 
@@ -178,8 +181,8 @@ export function ResumenVentasTable({ ventas }: { ventas: Venta[] }) {
     const vals = row.valores.map((v) => (v === 0 ? "" : String(v)));
     if (showProductCol) {
       exportData.push([
-        row.tipo === "Total" ? "" : row.producto ?? currentProd,
         row.tipo === "Total" ? "" : row.ota ?? currentOta,
+        row.tipo === "Total" ? "" : row.producto ?? currentProd,
         row.tipo,
         ...vals,
       ]);
@@ -228,10 +231,10 @@ export function ResumenVentasTable({ ventas }: { ventas: Venta[] }) {
         <table className="min-w-full text-sm border-collapse">
           <thead>
             <tr className="bg-slate-900 text-white">
+              <th className="px-3 py-2.5 text-left font-semibold border-b border-r border-slate-700">OTA</th>
               {showProductCol && (
                 <th className="px-3 py-2.5 text-left font-semibold border-b border-r border-slate-700">Producto</th>
               )}
-              <th className="px-3 py-2.5 text-left font-semibold border-b border-r border-slate-700">OTA</th>
               <th className="px-3 py-2.5 text-left font-semibold border-b border-r border-slate-700">Tipo de Entrada</th>
               {MES_ORDER.map((mes) => (
                 <th key={mes} className="px-2 py-2.5 text-center font-semibold border-b border-r border-slate-700 min-w-[4rem]">
@@ -258,26 +261,14 @@ export function ResumenVentasTable({ ventas }: { ventas: Venta[] }) {
                   </td>
                 ) : (
                   <>
-                    {showProductCol && (
-                      <>
-                        {row.productoRowSpan != null ? (
-                          <td
-                            rowSpan={row.productoRowSpan}
-                            className="px-3 py-2 border-b border-r border-slate-200 text-slate-800 align-top font-medium"
-                          >
-                            {row.producto}
-                          </td>
-                        ) : null}
-                        {row.otaRowSpan != null ? (
-                          <td rowSpan={row.otaRowSpan} className="px-3 py-2 border-b border-r border-slate-200 text-slate-800 align-top">
-                            {row.ota}
-                          </td>
-                        ) : null}
-                      </>
-                    )}
-                    {!showProductCol && row.otaRowSpan != null ? (
-                      <td rowSpan={row.otaRowSpan} className="px-3 py-2 border-b border-r border-slate-200 text-slate-800 align-top">
+                    {row.otaRowSpan != null ? (
+                      <td rowSpan={row.otaRowSpan} className="px-3 py-2 border-b border-r border-slate-200 text-slate-800 align-top font-medium">
                         {row.ota}
+                      </td>
+                    ) : null}
+                    {showProductCol && row.productoRowSpan != null ? (
+                      <td rowSpan={row.productoRowSpan} className="px-3 py-2 border-b border-r border-slate-200 text-slate-800 align-top">
+                        {row.producto}
                       </td>
                     ) : null}
                     <td className="px-3 py-2 border-b border-r border-slate-200 text-slate-800">{row.tipo}</td>
