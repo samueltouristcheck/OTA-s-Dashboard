@@ -67,6 +67,9 @@ export function DashboardContent({
   const [productos, setProductos] = useState<string[]>([]);
   const [añosOpt, setAñosOpt] = useState<number[]>([]);
   const [mesesOpt, setMesesOpt] = useState<string[]>([]);
+  // Es refresca sol en tornar a la pestanya (p. ex. després d'editar dades a "Datos mensuales"), perquè
+  // les xifres i, sobretot, les opcions dels filtres no quedin amb valors antics.
+  const [refreshKey, setRefreshKey] = useState(0);
   const [comparativa, setComparativa] = useState<string>("");
   const [comparativaData, setComparativaData] = useState<{
     tipo: string;
@@ -75,6 +78,23 @@ export function DashboardContent({
     porMes?: Record<string, { porAño: Record<number, number>; total: number }>;
     meses?: string[];
   } | null>(null);
+
+  // En recuperar el focus o tornar a fer visible la pestanya, torna a demanar les dades i les opcions
+  // dels filtres. Així, si l'Alexandra edita dades en una altra pantalla o pestanya, en tornar aquí ho
+  // veu actualitzat sense haver de recarregar a mà.
+  useEffect(() => {
+    function refresca() {
+      if (typeof document === "undefined" || document.visibilityState === "visible") {
+        setRefreshKey((k) => k + 1);
+      }
+    }
+    window.addEventListener("focus", refresca);
+    document.addEventListener("visibilitychange", refresca);
+    return () => {
+      window.removeEventListener("focus", refresca);
+      document.removeEventListener("visibilitychange", refresca);
+    };
+  }, []);
 
   // Gráficos y KPIs: solo filtros del dashboard
   useEffect(() => {
@@ -101,7 +121,7 @@ export function DashboardContent({
         if (filterOptions?.productos?.length) setProductos(filterOptions.productos);
       })
       .catch(() => setStats({ total: 0, porMes: {}, porOta: {}, porTipo: {}, porProducto: {}, porAño: {} }));
-  }, [token, año, mes, ota, tipoEntrada, producto, clienteId]);
+  }, [token, año, mes, ota, tipoEntrada, producto, clienteId, refreshKey]);
 
   // Tabla resumen: filtros propios
   useEffect(() => {
@@ -119,7 +139,7 @@ export function DashboardContent({
       .then((r) => r.json())
       .then((v) => setVentas(Array.isArray(v) ? v : []))
       .catch(() => setVentas([]));
-  }, [token, tableAño, tableMes, tableOta, tableTipo, tableProducto, clienteId]);
+  }, [token, tableAño, tableMes, tableOta, tableTipo, tableProducto, clienteId, refreshKey]);
 
   useEffect(() => {
     if (!token || !comparativa) {
