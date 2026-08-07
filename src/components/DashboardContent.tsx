@@ -189,7 +189,10 @@ export function DashboardContent({
   const tiposList = [...new Set(tipos.length ? tipos : Object.keys(stats.porTipo || {}))].sort();
   const otasList = [...new Set(otas.length ? otas : Object.keys(stats.porOta || {}))].sort();
   const productosList = [...new Set([...(productos.length ? productos : Object.keys(stats.porProducto || {}))])].filter(Boolean).sort();
-  const showProductoFilter = productosList.length > 1;
+  // Mostrem el filtre de Producto si n'hi ha més d'un, o si l'únic no és el genèric "General" (igual que la
+  // columna de la taula): així un client com el Vinseum, amb un sol producte real, també el pot filtrar.
+  const showProductoFilter =
+    productosList.length > 1 || (productosList.length === 1 && productosList[0] !== "General");
   const MESES_LIST = MESES_ORDER;
   const mesesList = mesesOpt.length ? mesesOpt : MESES_LIST;
   const añoActual = años[0] || new Date().getFullYear();
