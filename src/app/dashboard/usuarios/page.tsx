@@ -208,7 +208,7 @@ export default function UsuariosPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold text-slate-800">Gestión de usuarios</h1>
-      <p className="text-slate-600 text-sm">Solo los super admins (Alexandra, Samuel) pueden crear y eliminar usuarios. Para clientes: usuario = nombre del cliente, contraseña = cliente123.</p>
+      <p className="text-slate-600 text-sm">Solo los super admins (Alexandra, Samuel) pueden crear y eliminar usuarios. La tabla muestra el usuario y la contraseña reales de cada cuenta; al editarlos se actualizan aquí.</p>
 
       <div id="crear-usuario-form" className="p-6 bg-white rounded-xl border border-slate-200">
         <h2 className="font-medium text-slate-800 mb-4">Crear usuario</h2>
@@ -273,7 +273,7 @@ export default function UsuariosPage() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <p className="px-4 py-3 text-slate-600 text-sm">Usuario = nombre del cliente, contraseña = cliente123.</p>
+        <p className="px-4 py-3 text-slate-600 text-sm">Usuario y contraseña reales de cada cliente. Usa el lápiz para cambiarlos.</p>
         <table className="min-w-full text-sm">
           <thead className="bg-slate-50">
             <tr>
@@ -287,9 +287,13 @@ export default function UsuariosPage() {
           <tbody>
             {clientesConAcceso.map((c, i) => {
               const matchedUser = users.find((u) =>
+                (u.clienteId && u.clienteId === c.id) ||
                 (u.clienteNombre?.toLowerCase() === c.nombre.toLowerCase()) ||
                 (u.username?.toLowerCase() === c.nombre.toLowerCase())
               );
+              // Dades reals del compte (no "cliente123" fix): així, en canviar usuari o contrasenya, es veu.
+              const usuarioReal = matchedUser?.username ?? c.nombre;
+              const passwordReal = matchedUser?.initialPassword ?? "—";
               const isEditing = (matchedUser && editingId === matchedUser.id) || editingClienteNombre === c.nombre;
               return (
                 <tr key={c.id} className="border-t border-slate-100 hover:bg-slate-50">
@@ -330,8 +334,8 @@ export default function UsuariosPage() {
                     <>
                       <td className="px-4 py-3 text-slate-500">{i + 1}</td>
                       <td className="px-4 py-3 font-medium">{c.nombre}</td>
-                      <td className="px-4 py-3 font-mono">{c.username}</td>
-                      <td className="px-4 py-3 font-mono text-slate-700">{c.password}</td>
+                      <td className="px-4 py-3 font-mono">{usuarioReal}</td>
+                      <td className="px-4 py-3 font-mono text-slate-700">{passwordReal}</td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex gap-1 justify-end">
                           <button
