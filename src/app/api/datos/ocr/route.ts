@@ -45,20 +45,26 @@ export async function POST(req: NextRequest) {
     const sistema = [
       "Eres un asistente que lee capturas o fotos de tablas de ventas de entradas y extrae los datos.",
       `Contexto: los datos son del cliente "${cliente || "(desconocido)"}" y del año ${ano || "(el que indique la imagen)"}.`,
+      "IMPORTANTE — formato de la tabla: normalmente es ANCHA. Cada fila empieza con OTA, Producto y Tipo,",
+      "y luego trae los 12 MESES en columnas (ENE FEB MAR ABR MAY JUN JUL AGO SEP OCT NOV DIC, o Enero...Diciembre).",
+      "Para CADA fila, recorre las 12 columnas de meses de izquierda a derecha y crea UNA entrada por cada celda",
+      "que tenga un número mayor que 0. Lee columna por columna con cuidado y no te saltes ninguna celda con número.",
+      "Ignora la columna 'TOTAL' (o 'Total'): es la suma, NO un mes.",
       "Devuelve SOLO un JSON con esta forma exacta:",
       '{ "filas": [ { "ota": string, "producto": string, "tipoEntrada": string, "mes": string, "numeroEntradas": number } ] }',
       "Reglas:",
-      `- "mes" debe ser uno de: ${MES_ORDER.join(", ")}. Si en la imagen pone "Julio" o "07", conviértelo a "07. Julio".`,
-      '- "tipoEntrada": General, Niño, Reducido... lo que ponga; si no hay, usa "General".',
-      '- "producto": el tipo de producto/entrada si lo hay; si no, "General".',
-      '- "ota": el canal/OTA (Fever, GetYourGuide, Tiqets...). Si la imagen no lo dice, deja "".',
-      "- numeroEntradas: entero. NO inventes números; extrae solo lo que se vea. Omite celdas vacías o a 0.",
+      `- "mes" debe ser uno de: ${MES_ORDER.join(", ")}. La columna 1 es "01. Enero", la 2 "02. Febrero", etc. Respeta la posición de la columna.`,
+      '- "tipoEntrada": General, Niño, Reducido, ADULT, KIDS, INFANT... lo que ponga; si no hay, usa "General".',
+      '- "producto": el producto/entrada de esa fila (p. ej. "Ticket", "Combo Zoo + Aquàrium"); si no hay, "General". Copia el nombre completo aunque sea largo.',
+      '- "ota": el canal/OTA (Fever, GetYourGuide, Tiqets, Headout...). Si una fila no lo repite pero pertenece al mismo bloque que la de arriba, usa la misma OTA.',
+      "- numeroEntradas: entero. NO inventes números; extrae solo lo que se vea. Omite celdas vacías, con guion (—) o a 0.",
+      "- Sé EXHAUSTIVO: extrae TODAS las filas y TODOS los meses con número, no solo los primeros. Es mejor muchas entradas que dejarte datos.",
       "- Si no reconoces la tabla o no hay datos claros, devuelve filas vacías.",
     ].join("\n");
 
     const resp = await client.chat.completions.create({
       model: MODEL,
-      max_tokens: 3000,
+      max_tokens: 16000,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: sistema },
