@@ -141,7 +141,9 @@ export default function DatosMensualesPage() {
     setFilas((prev) => {
       const copia = [...prev];
       const fila = { ...copia[fi], meses: [...copia[fi].meses] };
-      const limpio = valor.trim();
+      // Són comptes d'entrades (enters). Traiem punts/espais/comes de miler i qualsevol caràcter no numèric,
+      // perquè "1.457" o "1 457" no es desin com a 1.
+      const limpio = valor.replace(/[^\d]/g, "");
       if (limpio === "") fila.meses[mi] = null;
       else {
         const n = parseInt(limpio, 10);
@@ -258,7 +260,9 @@ export default function DatosMensualesPage() {
     return out;
   }, [filas, original]);
 
-  const incompletas = filas.some((f) => !f.ota.trim() || !f.producto.trim() || !f.tipoEntrada.trim());
+  // Files a mig omplir (sense OTA/producto/tipus). No bloquegen el guardat: simplement no es desen fins que
+  // es completin. Abans bloquejaven tot el botó i semblava que no es guardés res.
+  const filasIncompletas = filas.filter((f) => !f.ota.trim() || !f.producto.trim() || !f.tipoEntrada.trim()).length;
 
   /** Dues files amb la mateixa combinació xocarien contra la clau única. */
   const duplicadas = useMemo(() => {
@@ -338,9 +342,9 @@ export default function DatosMensualesPage() {
           </button>
           <button
             onClick={guardar}
-            disabled={!cambios.length || guardando || incompletas || duplicadas}
+            disabled={!cambios.length || guardando || duplicadas}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
-            title={incompletas ? "Hay filas sin OTA, producto o tipo" : duplicadas ? "Hay dos filas con la misma combinación" : undefined}
+            title={duplicadas ? "Hay dos filas con la misma combinación de OTA, producto y tipo" : undefined}
           >
             <Save className="w-4 h-4" />
             {guardando ? "Guardando..." : cambios.length ? `Guardar (${cambios.length})` : "Guardar"}
@@ -381,6 +385,17 @@ export default function DatosMensualesPage() {
       {message && (
         <div className={`p-3 rounded-lg text-sm ${message.type === "ok" ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}>
           {message.text}
+        </div>
+      )}
+
+      {duplicadas && (
+        <div className="p-3 rounded-lg text-sm bg-red-50 text-red-800">
+          Hay dos filas con la misma combinación de OTA, producto y tipo. Únelas en una sola antes de guardar (si no, una pisaría a la otra).
+        </div>
+      )}
+      {filasIncompletas > 0 && (
+        <div className="p-3 rounded-lg text-sm bg-amber-50 text-amber-800">
+          Hay {filasIncompletas} fila{filasIncompletas !== 1 ? "s" : ""} sin OTA, producto o tipo (en rojo): sus números no se guardarán hasta que las completes. El resto sí se guarda.
         </div>
       )}
 
