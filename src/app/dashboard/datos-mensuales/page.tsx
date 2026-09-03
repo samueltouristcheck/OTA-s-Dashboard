@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, Save, Copy, Sparkles } from "lucide-react";
+import { Plus, Trash2, Save, Copy, Sparkles, GripVertical } from "lucide-react";
 import { AsistenteOCR } from "@/components/AsistenteOCR";
 
 const MESES = [
@@ -77,6 +77,38 @@ function filasDesdeVentas(ventas: Venta[]): Fila[] {
   );
 }
 
+// L'ordre manual de les files (arrossegar per ordenar) es guarda al navegador, per client i any. És una
+// preferència de visualització personal, no una dada compartida, així que localStorage és el lloc adequat.
+const ordreKey = (cid: string, year: number) => `dm-orden:${cid}:${year}`;
+
+function aplicaOrdreDesat(filas: Fila[], cid: string, year: number): Fila[] {
+  try {
+    const raw = typeof window !== "undefined" ? localStorage.getItem(ordreKey(cid, year)) : null;
+    if (!raw) return filas;
+    const orden = JSON.parse(raw) as string[];
+    const pos = new Map(orden.map((k, i) => [k, i]));
+    return [...filas].sort((a, b) => {
+      const pa = pos.has(clau(a)) ? (pos.get(clau(a)) as number) : Infinity;
+      const pb = pos.has(clau(b)) ? (pos.get(clau(b)) as number) : Infinity;
+      if (pa !== pb) return pa - pb;
+      return a.ota.localeCompare(b.ota) || a.producto.localeCompare(b.producto) || a.tipoEntrada.localeCompare(b.tipoEntrada);
+    });
+  } catch {
+    return filas;
+  }
+}
+
+function desaOrdre(filas: Fila[], cid: string, year: number) {
+  try {
+    const claus = filas
+      .filter((f) => f.ota.trim() && f.producto.trim() && f.tipoEntrada.trim())
+      .map((f) => clau({ ota: f.ota.trim(), producto: f.producto.trim(), tipoEntrada: f.tipoEntrada.trim() }));
+    localStorage.setItem(ordreKey(cid, year), JSON.stringify(claus));
+  } catch {
+    /* en mode privat localStorage pot fallar; l'ordre no és crític */
+  }
+}
+
 export default function DatosMensualesPage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [clienteId, setClienteId] = useState("");
@@ -87,6 +119,7 @@ export default function DatosMensualesPage() {
   const [guardando, setGuardando] = useState(false);
   const [message, setMessage] = useState<{ type: "ok" | "error"; text: string } | null>(null);
   const [asistente, setAsistente] = useState(false);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
 
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "{}") : null;
@@ -116,7 +149,7 @@ export default function DatosMensualesPage() {
           cache: "no-store",
         });
         const data = await res.json();
-        const nuevas = filasDesdeVentas(Array.isArray(data) ? data : []);
+        const nuevas = aplicaOrdreDesat(filasDesdeVentas(Array.isArray(data) ? data : []), cid, year);
         setFilas(nuevas);
         setOriginal(JSON.parse(JSON.stringify(nuevas)));
       } catch {
@@ -165,6 +198,19 @@ export default function DatosMensualesPage() {
 
   function anadirFila() {
     setFilas((prev) => [...prev, { uid: nouUid(), ota: "", producto: "", tipoEntrada: "General", meses: Array(12).fill(null), origen: null }]);
+  }
+
+  /** Mou una fila (arrossegant) i desa el nou ordre al navegador. */
+  function moure(desde: number, hasta: number) {
+    if (desde === hasta) return;
+    setFilas((prev) => {
+      const copia = [...prev];
+      const [mogut] = copia.splice(desde, 1);
+      copia.splice(hasta, 0, mogut);
+      desaOrdre(copia, clienteId, ano);
+      return copia;
+    });
+    setDragIndex(null);
   }
 
   async function copiarEstructura() {
@@ -404,6 +450,7 @@ export default function DatosMensualesPage() {
           <table className="min-w-full text-sm border-collapse">
             <thead>
               <tr className="bg-slate-900 text-white">
+                <th className="w-8" />
                 <th className="px-3 py-2.5 text-left font-medium min-w-[130px]">OTA</th>
                 <th className="px-3 py-2.5 text-left font-medium min-w-[130px]">Producto</th>
                 <th className="px-3 py-2.5 text-left font-medium min-w-[110px]">Tipo</th>
@@ -419,13 +466,13 @@ export default function DatosMensualesPage() {
             <tbody>
               {cargando ? (
                 <tr>
-                  <td colSpan={17} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={18} className="px-4 py-8 text-center text-slate-500">
                     Cargando...
                   </td>
                 </tr>
               ) : filas.length === 0 ? (
                 <tr>
-                  <td colSpan={17} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={18} className="px-4 py-8 text-center text-slate-500">
                     No hay datos de {ano}. Añade una fila o copia las de {ano - 1}.
                   </td>
                 </tr>
@@ -433,7 +480,30 @@ export default function DatosMensualesPage() {
                 filas.map((f, fi) => {
                   const totalFila = f.meses.reduce((s: number, n) => s + (n ?? 0), 0);
                   return (
-                    <tr key={f.uid} className="border-b border-slate-100 hover:bg-slate-50/50">
+                    <tr
+                      key={f.uid}
+                      onDragOver={(e) => {
+                        if (dragIndex !== null) e.preventDefault();
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        if (dragIndex !== null) moure(dragIndex, fi);
+                      }}
+                      className={`border-b border-slate-100 hover:bg-slate-50/50 ${
+                        dragIndex === fi ? "opacity-40" : ""
+                      }`}
+                    >
+                      <td className="px-1 py-1 text-center align-middle">
+                        <span
+                          draggable
+                          onDragStart={() => setDragIndex(fi)}
+                          onDragEnd={() => setDragIndex(null)}
+                          title="Arrastra para reordenar"
+                          className="inline-flex cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500"
+                        >
+                          <GripVertical className="w-4 h-4" />
+                        </span>
+                      </td>
                       {(["ota", "producto", "tipoEntrada"] as const).map((campo) => (
                         <td key={campo} className="px-2 py-1 border-r border-slate-100">
                           <input
@@ -475,7 +545,7 @@ export default function DatosMensualesPage() {
             {filas.length > 0 && (
               <tfoot>
                 <tr className="bg-slate-100 font-medium text-slate-800 border-t-2 border-slate-300">
-                  <td className="px-3 py-2" colSpan={3}>
+                  <td className="px-3 py-2" colSpan={4}>
                     Total {ano}
                   </td>
                   {totalMes.map((n, i) => (
@@ -494,6 +564,7 @@ export default function DatosMensualesPage() {
 
       <p className="text-xs text-slate-400">
         Una celda vacía no es lo mismo que un 0: vacía significa que no hay dato y no se guarda ninguna fila.
+        Arrastra una fila por los puntitos de la izquierda para reordenarla; el orden se guarda en este navegador.
       </p>
 
       {asistente && clienteId && (
