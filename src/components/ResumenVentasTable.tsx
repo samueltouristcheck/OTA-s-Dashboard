@@ -178,7 +178,7 @@ export function ResumenVentasTable({ ventas }: { ventas: Venta[] }) {
   for (const row of rows) {
     if (row.producto) currentProd = row.producto;
     if (row.ota) currentOta = row.ota;
-    const vals = row.valores.map((v) => (v === 0 ? "" : String(v)));
+    const vals = row.valores.map((v) => String(v));
     if (showProductCol) {
       exportData.push([
         row.tipo === "Total" ? "" : row.ota ?? currentOta,
@@ -276,7 +276,7 @@ export function ResumenVentasTable({ ventas }: { ventas: Venta[] }) {
                 )}
                 {row.valores.map((v, j) => (
                   <td key={j} className="px-2 py-2 border-b border-r border-slate-200 text-center text-slate-700">
-                    {v === 0 ? "—" : v.toLocaleString()}
+                    {v.toLocaleString()}
                   </td>
                 ))}
               </tr>

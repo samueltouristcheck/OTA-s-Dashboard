@@ -23,7 +23,6 @@ const SENSE_PERFIL = new Set(
     "Museu de l'Art Prohibit",
     "Museu d'Art Prohibit",
     "Fundació Miró",
-    "Alsa",
   ].map((x) => normKey(x))
 );
 
