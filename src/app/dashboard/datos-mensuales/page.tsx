@@ -350,6 +350,18 @@ export default function DatosMensualesPage() {
   const totalMes = MESES.map((_, i) => filas.reduce((s, f) => s + (f.meses[i] ?? 0), 0));
   const totalGeneral = totalMes.reduce((s, n) => s + n, 0);
 
+  // Franja de color per OTA (com a l'Excel): les files d'una mateixa OTA comparteixen color i s'alterna
+  // el color cada cop que canvia l'OTA. Ajuda a distingir els blocs visualment.
+  const bandaPorFila: number[] = [];
+  {
+    let banda = 0;
+    const norm = (s: string) => s.trim().toLowerCase();
+    for (let i = 0; i < filas.length; i++) {
+      if (i > 0 && norm(filas[i].ota) !== norm(filas[i - 1].ota)) banda = 1 - banda;
+      bandaPorFila[i] = banda;
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -489,9 +501,9 @@ export default function DatosMensualesPage() {
                         e.preventDefault();
                         if (dragIndex !== null) moure(dragIndex, fi);
                       }}
-                      className={`border-b border-slate-100 hover:bg-slate-50/50 ${
-                        dragIndex === fi ? "opacity-40" : ""
-                      }`}
+                      className={`border-b border-slate-100 hover:bg-blue-50 ${
+                        bandaPorFila[fi] ? "bg-slate-100" : "bg-white"
+                      } ${dragIndex === fi ? "opacity-40" : ""}`}
                     >
                       <td className="px-1 py-1 text-center align-middle">
                         <span
@@ -526,7 +538,7 @@ export default function DatosMensualesPage() {
                           />
                         </td>
                       ))}
-                      <td className="px-3 py-1 text-right font-medium text-slate-700 bg-slate-50/70">{totalFila}</td>
+                      <td className="px-3 py-1 text-right font-medium text-slate-700">{totalFila}</td>
                       <td className="px-1 py-1 text-center">
                         <button
                           onClick={() => borrarFila(fi)}
