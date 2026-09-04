@@ -296,11 +296,20 @@ export default function DatosMensualesPage() {
       }
 
       const antes = previo.get(clau(actual));
+      let algunCanvi = false;
       for (let i = 0; i < 12; i++) {
         const ahora = f.meses[i];
         const before = antes?.meses[i] ?? null;
         if (ahora === before) continue;
         out.push({ ...actual, mes: MESES[i], numeroEntradas: ahora });
+        algunCanvi = true;
+      }
+
+      // Fila nova d'una plataforma que encara no té vendes: capçalera completa, cap número i no existeix
+      // a la BD. La creem amb 0 a tots els mesos perquè la plataforma quedi guardada (l'Alexandra vol
+      // llistar plataformes on el producte es ven encara que allà no hi hagi vendes).
+      if (!f.origen && !antes && !algunCanvi) {
+        for (let i = 0; i < 12; i++) out.push({ ...actual, mes: MESES[i], numeroEntradas: 0 });
       }
     }
     return out;
@@ -592,7 +601,8 @@ export default function DatosMensualesPage() {
       </div>
 
       <p className="text-xs text-slate-400">
-        Una celda vacía no es lo mismo que un 0: vacía significa que no hay dato y no se guarda ninguna fila.
+        Para añadir una plataforma que todavía no tiene ventas, crea la fila (OTA, producto y tipo) y guarda:
+        se guardará con 0 en todos los meses y ya podrás rellenarla cuando haya ventas.
         Arrastra una fila por los puntitos de la izquierda para reordenarla; el orden se guarda en este navegador.
       </p>
 
