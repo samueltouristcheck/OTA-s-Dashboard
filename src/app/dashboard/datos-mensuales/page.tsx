@@ -109,6 +109,31 @@ function desaOrdre(filas: Fila[], cid: string, year: number) {
   }
 }
 
+// Plataformes creades sense cap venda encara. Com que la BD no admet cel·les buides (i no volem posar 0,
+// perquè l'Alexandra vol distingir "revisat" de "per revisar"), es recorden al navegador i es pinten com a
+// files en blanc. Quan hi posa un número i desa, passen a ser dades reals a la BD.
+const buidesKey = (cid: string, year: number) => `dm-buides:${cid}:${year}`;
+
+function carregaBuides(cid: string, year: number): Cabecera[] {
+  try {
+    const raw = typeof window !== "undefined" ? localStorage.getItem(buidesKey(cid, year)) : null;
+    return raw ? (JSON.parse(raw) as Cabecera[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function desaBuides(cid: string, year: number, filas: Fila[]) {
+  try {
+    const buides = filas
+      .filter((f) => f.ota.trim() && f.producto.trim() && f.tipoEntrada.trim() && f.meses.every((m) => m == null))
+      .map((f) => ({ ota: f.ota.trim(), producto: f.producto.trim(), tipoEntrada: f.tipoEntrada.trim() }));
+    localStorage.setItem(buidesKey(cid, year), JSON.stringify(buides));
+  } catch {
+    /* localStorage pot fallar en mode privat */
+  }
+}
+
 export default function DatosMensualesPage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [clienteId, setClienteId] = useState("");
@@ -149,7 +174,13 @@ export default function DatosMensualesPage() {
           cache: "no-store",
         });
         const data = await res.json();
-        const nuevas = aplicaOrdreDesat(filasDesdeVentas(Array.isArray(data) ? data : []), cid, year);
+        const dbFilas = filasDesdeVentas(Array.isArray(data) ? data : []);
+        // Afegim les plataformes buides recordades al navegador que encara no existeixen a la BD.
+        const dbClaus = new Set(dbFilas.map(clau));
+        const buidesFilas: Fila[] = carregaBuides(cid, year)
+          .filter((b) => !dbClaus.has(clau(b)))
+          .map((b) => ({ uid: nouUid(), ota: b.ota, producto: b.producto, tipoEntrada: b.tipoEntrada, meses: Array(12).fill(null), origen: null }));
+        const nuevas = aplicaOrdreDesat([...dbFilas, ...buidesFilas], cid, year);
         setFilas(nuevas);
         setOriginal(JSON.parse(JSON.stringify(nuevas)));
       } catch {
@@ -246,7 +277,11 @@ export default function DatosMensualesPage() {
   async function borrarFila(fi: number) {
     const fila = filas[fi];
     if (!fila.origen) {
-      setFilas((prev) => prev.filter((_, i) => i !== fi));
+      setFilas((prev) => {
+        const nou = prev.filter((_, i) => i !== fi);
+        desaBuides(clienteId, ano, nou); // treu-la també de les plataformes buides recordades
+        return nou;
+      });
       return;
     }
     if (!confirm(`¿Borrar la fila ${fila.ota} / ${fila.producto} / ${fila.tipoEntrada} de ${ano}?`)) return;
@@ -296,20 +331,11 @@ export default function DatosMensualesPage() {
       }
 
       const antes = previo.get(clau(actual));
-      let algunCanvi = false;
       for (let i = 0; i < 12; i++) {
         const ahora = f.meses[i];
         const before = antes?.meses[i] ?? null;
         if (ahora === before) continue;
         out.push({ ...actual, mes: MESES[i], numeroEntradas: ahora });
-        algunCanvi = true;
-      }
-
-      // Fila nova d'una plataforma que encara no té vendes: capçalera completa, cap número i no existeix
-      // a la BD. La creem amb 0 a tots els mesos perquè la plataforma quedi guardada (l'Alexandra vol
-      // llistar plataformes on el producte es ven encara que allà no hi hagi vendes).
-      if (!f.origen && !antes && !algunCanvi) {
-        for (let i = 0; i < 12; i++) out.push({ ...actual, mes: MESES[i], numeroEntradas: 0 });
       }
     }
     return out;
@@ -330,6 +356,18 @@ export default function DatosMensualesPage() {
   // es completin. Abans bloquejaven tot el botó i semblava que no es guardés res.
   const filasIncompletas = filas.filter((f) => !f.ota.trim() || !f.producto.trim() || !f.tipoEntrada.trim()).length;
 
+  // Plataformes buides noves (capçalera completa, sense cap número) que encara no estaven guardades.
+  // Fan que el botó Guardar s'activi encara que no hi hagi canvis de números.
+  const buidesNoves = useMemo(() => {
+    const originalClaus = new Set(original.map(clau));
+    return filas.some(
+      (f) =>
+        f.ota.trim() && f.producto.trim() && f.tipoEntrada.trim() &&
+        f.meses.every((m) => m == null) &&
+        !originalClaus.has(clau({ ota: f.ota.trim(), producto: f.producto.trim(), tipoEntrada: f.tipoEntrada.trim() }))
+    );
+  }, [filas, original]);
+
   /** Dues files amb la mateixa combinació xocarien contra la clau única. */
   const duplicadas = useMemo(() => {
     const vistas = new Set<string>();
@@ -343,18 +381,24 @@ export default function DatosMensualesPage() {
   }, [filas]);
 
   async function guardar() {
-    if (!cambios.length) return;
+    if (!cambios.length && !buidesNoves) return;
     setGuardando(true);
     setMessage(null);
     try {
-      const res = await fetch("/api/ventas/celdas", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ clienteId, ano, cambios }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error al guardar");
-      setMessage({ type: "ok", text: `Guardado: ${data.guardadas} celdas, ${data.borradas} borradas` });
+      // Recorda al navegador les plataformes buides (sense números encara).
+      desaBuides(clienteId, ano, filas);
+      if (cambios.length) {
+        const res = await fetch("/api/ventas/celdas", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ clienteId, ano, cambios }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Error al guardar");
+        setMessage({ type: "ok", text: `Guardado: ${data.guardadas} celdas, ${data.borradas} borradas` });
+      } else {
+        setMessage({ type: "ok", text: "Plataformas guardadas." });
+      }
       await cargar(clienteId, ano);
     } catch (e) {
       setMessage({ type: "error", text: e instanceof Error ? e.message : "Error" });
@@ -420,7 +464,7 @@ export default function DatosMensualesPage() {
           </button>
           <button
             onClick={guardar}
-            disabled={!cambios.length || guardando || duplicadas}
+            disabled={(!cambios.length && !buidesNoves) || guardando || duplicadas}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
             title={duplicadas ? "Hay dos filas con la misma combinación de OTA, producto y tipo" : undefined}
           >
@@ -602,7 +646,7 @@ export default function DatosMensualesPage() {
 
       <p className="text-xs text-slate-400">
         Para añadir una plataforma que todavía no tiene ventas, crea la fila (OTA, producto y tipo) y guarda:
-        se guardará con 0 en todos los meses y ya podrás rellenarla cuando haya ventas.
+        se quedará en blanco (sin 0) para que sepas que aún está por rellenar, y aparecerá cada vez que abras este cliente.
         Arrastra una fila por los puntitos de la izquierda para reordenarla; el orden se guarda en este navegador.
       </p>
 
