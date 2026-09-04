@@ -306,6 +306,17 @@ export default function DatosMensualesPage() {
     return out;
   }, [filas, original]);
 
+  // Avís si tanca o recarrega la pàgina amb canvis sense desar, per no perdre el que està escrivint.
+  useEffect(() => {
+    if (!cambios.length) return;
+    const avisar = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", avisar);
+    return () => window.removeEventListener("beforeunload", avisar);
+  }, [cambios.length]);
+
   // Files a mig omplir (sense OTA/producto/tipus). No bloquegen el guardat: simplement no es desen fins que
   // es completin. Abans bloquejaven tot el botó i semblava que no es guardés res.
   const filasIncompletas = filas.filter((f) => !f.ota.trim() || !f.producto.trim() || !f.tipoEntrada.trim()).length;
@@ -413,7 +424,10 @@ export default function DatosMensualesPage() {
       <div className="flex flex-wrap items-center gap-3">
         <select
           value={clienteId}
-          onChange={(e) => setClienteId(e.target.value)}
+          onChange={(e) => {
+            if (cambios.length && !confirm("Tienes cambios sin guardar. Si cambias de cliente se perderán. ¿Continuar?")) return;
+            setClienteId(e.target.value);
+          }}
           className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white min-w-[220px]"
         >
           {clientes.map((c) => (
@@ -424,7 +438,10 @@ export default function DatosMensualesPage() {
         </select>
         <select
           value={ano}
-          onChange={(e) => setAno(parseInt(e.target.value, 10))}
+          onChange={(e) => {
+            if (cambios.length && !confirm("Tienes cambios sin guardar. Si cambias de año se perderán. ¿Continuar?")) return;
+            setAno(parseInt(e.target.value, 10));
+          }}
           className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white"
         >
           {anos.map((a) => (
